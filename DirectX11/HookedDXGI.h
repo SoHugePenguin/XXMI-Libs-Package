@@ -3,7 +3,7 @@
 #include <d3d11_1.h>
 #include <dxgi1_2.h>
 
-#include "HackerDevice.h"
+#include "PenguinDV.h"
 
 // -----------------------------------------------------------------------------
 // This class is 'Hooked', instead of 'Hacker', because it's a hook version, instead
@@ -45,7 +45,7 @@ extern "C" HRESULT(__stdcall *fnOrigCreateDXGIFactory2)(
 // Called from d3d11Wrapper for CreateDeviceAndSwapChain
 
 void override_swap_chain(DXGI_SWAP_CHAIN_DESC *pDesc, DXGI_SWAP_CHAIN_DESC *origSwapChainDesc);
-void wrap_swap_chain(HackerDevice *hackerDevice,
+void wrap_swap_chain(PenguinDV *PenguinDV,
 		IDXGISwapChain **ppSwapChain,
 		DXGI_SWAP_CHAIN_DESC *overrideSwapChainDesc,
 		DXGI_SWAP_CHAIN_DESC *origSwapChainDesc);

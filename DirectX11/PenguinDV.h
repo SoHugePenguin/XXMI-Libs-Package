@@ -5,18 +5,18 @@
 #include <d3d11_1.h>
 #include <INITGUID.h>
 
-#include "HackerContext.h"
+#include "PenguinDC.h"
 #include "HackerDXGI.h"
 
 // {83FFD841-A5C9-46F4-8109-BC259558FEF4}
-DEFINE_GUID(IID_HackerDevice,
+DEFINE_GUID(IID_PenguinDV,
 0x83ffd841, 0xa5c9, 0x46f4, 0x81, 0x9, 0xbc, 0x25, 0x95, 0x58, 0xfe, 0xf4);
 
 // Forward declaration to allow circular reference between HackerContext and HackerDevice. 
 // We need this to allow each to reference the other as needed.
 
-class HackerContext;
-class HackerSwapChain;
+class PenguinDC;
+class PenguinSC;
 
 
 // 1-6-18:  Current approach will be to only create one level of wrapping,
@@ -42,7 +42,7 @@ class HackerSwapChain;
 // Hierarchy:
 //  HackerDevice <- ID3D11Device1 <- ID3D11Device <- IUnknown
 
-class HackerDevice : public ID3D11Device1
+class PenguinDV : public ID3D11Device1
 {
 private:
 	ID3D11Device1 *mOrigDevice1;
@@ -50,8 +50,8 @@ private:
 	ID3D11DeviceContext1 *mOrigContext1;
 	IUnknown *mUnknown;
 
-	HackerContext *mHackerContext;
-	HackerSwapChain *mHackerSwapChain;
+	PenguinDC *mPenguinDC;
+	PenguinSC *mPenguinSC;
 
 	// Utility routines
 	char *_ReplaceShaderFromShaderFixes(UINT64 hash, const wchar_t *shaderType, const void *pShaderBytecode,
@@ -116,15 +116,15 @@ public:
 	ID3D11Texture1D *mIniTexture;
 	ID3D11ShaderResourceView *mIniResourceView;
 
-	HackerDevice(ID3D11Device1 *pDevice1, ID3D11DeviceContext1 *pContext1);
+    PenguinDV(ID3D11Device1 *pDevice1, ID3D11DeviceContext1 *pContext1);
 
 	HRESULT CreateIniParamResources();
 	void Create3DMigotoResources();
-	void SetHackerContext(HackerContext *pHackerContext);
-	void SetHackerSwapChain(HackerSwapChain *pHackerSwapChain);
+	void SetPenguinDC(PenguinDC *pPenguinDC);
+	void SetPenguinSC(PenguinSC *pPenguinSC);
 
-	HackerContext* GetHackerContext();
-	HackerSwapChain* GetHackerSwapChain();
+	PenguinDC* GetPenguinDC();
+	PenguinSC* GetPenguinSC();
 	ID3D11Device1* GetPossiblyHookedOrigDevice1();
 	ID3D11Device1* GetPassThroughOrigDevice1();
 	ID3D11DeviceContext1* GetPossiblyHookedOrigContext1();
@@ -497,4 +497,4 @@ public:
 		_Out_  void **ppResource); 
 };
 
-HackerDevice* lookup_hacker_device(IUnknown *unknown);
+PenguinDV* lookup_hacker_device(IUnknown *unknown);

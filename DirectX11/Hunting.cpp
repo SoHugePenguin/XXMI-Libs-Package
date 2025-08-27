@@ -279,14 +279,14 @@ void DumpUsage(wchar_t *dir)
 // return the S_FALSE if it's already inited.
 
 template <typename HashType>
-static void SimpleScreenShot(HackerDevice *pDevice, HashType hash, char *shaderType)
+static void SimpleScreenShot(PenguinDV *pDevice, HashType hash, char *shaderType)
 {
 	wchar_t fullName[MAX_PATH];
 	ID3D11Texture2D *backBuffer;
-	HackerSwapChain *mHackerSwapChain = pDevice->GetHackerSwapChain();
+	PenguinSC *mPenguinSC = pDevice->GetPenguinSC();
 	int hash_len = sizeof(HashType) * 2;
 
-	if (!mHackerSwapChain) {
+	if (!mPenguinSC) {
 		LogOverlay(LOG_DIRE, "marking_actions=mono_snapshot: Unable to get back buffer\n");
 		return;
 	}
@@ -295,7 +295,7 @@ static void SimpleScreenShot(HackerDevice *pDevice, HashType hash, char *shaderT
 	if (FAILED(hr))
 		LogInfo("*** Overlay call CoInitializeEx failed: %d\n", hr);
 
-	hr = mHackerSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&backBuffer);
+	hr = mPenguinSC->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&backBuffer);
 	if (SUCCEEDED(hr))
 	{
 		swprintf_s(fullName, MAX_PATH, L"%ls\\%0*llx-%S.jpg", G->SHADER_PATH, hash_len, (UINT64)hash, shaderType);
@@ -309,7 +309,7 @@ static void SimpleScreenShot(HackerDevice *pDevice, HashType hash, char *shaderT
 }
 
 template <typename HashType>
-static void MarkingScreenShots(HackerDevice *device, HashType hash, char *short_type)
+static void MarkingScreenShots(PenguinDV *device, HashType hash, char *short_type)
 {
 	if (!hash || hash == (HashType)-1)
 		return;
@@ -680,7 +680,7 @@ static bool RegenerateShader(wchar_t *shaderFixPath, wchar_t *fileName, const ch
 // new version will be used at VSSetShader and PSSetShader.
 // File names are uniform in the form: 3c69e169edc8cd5f-ps_replace.txt
 
-static bool ReloadShader(wchar_t *shaderPath, wchar_t *fileName, HackerDevice *device, string *errText)
+static bool ReloadShader(wchar_t *shaderPath, wchar_t *fileName, PenguinDV *device, string *errText)
 {
 	UINT64 hash;
 	ShaderOverrideMap::iterator override;
@@ -837,7 +837,7 @@ err:
 }
 
 static bool WriteASM(string *asmText, string *hlslText, string *errText,
-		UINT64 hash, OriginalShaderInfo shader_info, HackerDevice *device, wstring *tagline = NULL)
+		UINT64 hash, OriginalShaderInfo shader_info, PenguinDV *device, wstring *tagline = NULL)
 {
 	wchar_t fileName[MAX_PATH];
 	wchar_t fullName[MAX_PATH];
@@ -897,7 +897,7 @@ static bool WriteASM(string *asmText, string *hlslText, string *errText,
 // If a file was already extant in the ShaderFixes, it will be picked up at game launch as the master shaderByteCode.
 
 static bool WriteHLSL(string *asmText, string *hlslText, string *errText,
-		UINT64 hash, OriginalShaderInfo shader_info, HackerDevice *device, bool remove_failed)
+		UINT64 hash, OriginalShaderInfo shader_info, PenguinDV *device, bool remove_failed)
 {
 	wchar_t fileName[MAX_PATH];
 	wchar_t fullName[MAX_PATH];
@@ -1008,7 +1008,7 @@ static bool shader_already_dumped(UINT64 hash, char *type)
 // the replacement and build code to match.  This handles all the variants of preload, cache, hlsl 
 // or not, and allows creating new files on a first run.  Should be handy.
 
-static void CopyToFixes(UINT64 hash, HackerDevice *device)
+static void CopyToFixes(UINT64 hash, PenguinDV *device)
 {
 	bool success = false;
 	bool asm_enabled = !!(G->marking_actions & MarkingAction::ASM);
@@ -1141,7 +1141,7 @@ static void RevertMissingShaders()
 // the hlsl file and replace it.  This dual file scenario is expected to be rare, so
 // not doing anything heroic here to avoid that double load.
 
-static void ReloadFixes(HackerDevice *device, void *private_data)
+static void ReloadFixes(PenguinDV *device, void *private_data)
 {
 	LogInfo("> reloading *_replace.txt fixes from ShaderFixes\n");
 
@@ -1194,7 +1194,7 @@ static void ReloadFixes(HackerDevice *device, void *private_data)
 	}
 }
 
-static void DisableFix(HackerDevice *device, void *private_data)
+static void DisableFix(PenguinDV *device, void *private_data)
 {
 	if (G->hunting != HUNTING_MODE_ENABLED)
 		return;
@@ -1203,7 +1203,7 @@ static void DisableFix(HackerDevice *device, void *private_data)
 	G->fix_enabled = false;
 }
 
-static void EnableFix(HackerDevice *device, void *private_data)
+static void EnableFix(PenguinDV *device, void *private_data)
 {
 	if (G->hunting != HUNTING_MODE_ENABLED)
 		return;
@@ -1223,14 +1223,14 @@ static void _AnalyseFrameStop()
 	LogOverlayW(LOG_INFO, L"Frame analysis saved to %ls\n", G->ANALYSIS_PATH);
 }
 
-static void AnalyseFrame(HackerDevice *device, void *private_data)
+static void AnalyseFrame(PenguinDV *device, void *private_data)
 {
 	FrameAnalysisContext *factx = NULL;
 	wchar_t path[MAX_PATH], subdir[MAX_PATH];
 	time_t ltime;
 	struct tm tm;
 
-	if (FAILED(device->GetHackerContext()->QueryInterface(IID_FrameAnalysisContext, (void**)&factx))) {
+	if (FAILED(device->GetPenguinDC()->QueryInterface(IID_FrameAnalysisContext, (void**)&factx))) {
 		LogOverlay(LOG_DIRE, "Frame Analysis Context is missing: Restart the game with hunting enabled\n");
 		return;
 	}
@@ -1239,7 +1239,7 @@ static void AnalyseFrame(HackerDevice *device, void *private_data)
 	if (G->analyse_frame) {
 		// Frame analysis key has been pressed again while FA was
 		// already in progress, abort:
-		device->GetHackerContext()->FrameAnalysisLog("----- Frame analysis aborted -----\n");
+		device->GetPenguinDC()->FrameAnalysisLog("----- Frame analysis aborted -----\n");
 		LogOverlay(LOG_NOTICE, "Frame analysis aborted\n");
 		return _AnalyseFrameStop();
 	}
@@ -1274,7 +1274,7 @@ static void AnalyseFrame(HackerDevice *device, void *private_data)
 	G->analyse_frame = true;
 }
 
-static void AnalyseFrameStop(HackerDevice *device, void *private_data)
+static void AnalyseFrameStop(PenguinDV *device, void *private_data)
 {
 	// One of three places we can stop the frame analysis - the other is in
 	// the present call. We use this one when analyse_options=hold.
@@ -1292,7 +1292,7 @@ static void AnalyseFrameStop(HackerDevice *device, void *private_data)
 	}
 }
 
-static void AnalysePerf(HackerDevice *device, void *private_data)
+static void AnalysePerf(PenguinDV *device, void *private_data)
 {
 	Profiling::mode = (Profiling::Mode)((int)Profiling::mode + 1);
 
@@ -1306,7 +1306,7 @@ static void AnalysePerf(HackerDevice *device, void *private_data)
 	Profiling::clear();
 }
 
-static void FreezePerf(HackerDevice *device, void *private_data)
+static void FreezePerf(PenguinDV *device, void *private_data)
 {
 	if (Profiling::mode == Profiling::Mode::NONE)
 		return;
@@ -1317,7 +1317,7 @@ static void FreezePerf(HackerDevice *device, void *private_data)
 		LogInfoW(L"%s", Profiling::text.c_str());
 }
 
-static void DisableDeferred(HackerDevice *device, void *private_data)
+static void DisableDeferred(PenguinDV *device, void *private_data)
 {
 	if (G->hunting != HUNTING_MODE_ENABLED)
 		return;
@@ -1326,7 +1326,7 @@ static void DisableDeferred(HackerDevice *device, void *private_data)
 	G->deferred_contexts_enabled = false;
 }
 
-static void EnableDeferred(HackerDevice *device, void *private_data)
+static void EnableDeferred(PenguinDV *device, void *private_data)
 {
 	if (G->hunting != HUNTING_MODE_ENABLED)
 		return;
@@ -1335,7 +1335,7 @@ static void EnableDeferred(HackerDevice *device, void *private_data)
 	G->deferred_contexts_enabled = true;
 }
 
-static void NextMarkingMode(HackerDevice *device, void *private_data)
+static void NextMarkingMode(PenguinDV *device, void *private_data)
 {
 	if (G->hunting != HUNTING_MODE_ENABLED)
 		return;
@@ -1385,7 +1385,7 @@ out:
 	LeaveCriticalSection(&G->mCriticalSection);
 }
 
-static void NextVertexBuffer(HackerDevice *device, void *private_data)
+static void NextVertexBuffer(PenguinDV *device, void *private_data)
 {
 	HuntNext<uint32_t>("vertex buffer", &G->mVisitedVertexBuffers, &G->mSelectedVertexBuffer, &G->mSelectedVertexBufferPos);
 
@@ -1394,7 +1394,7 @@ static void NextVertexBuffer(HackerDevice *device, void *private_data)
 	G->mSelectedVertexBuffer_VertexShader.clear();
 	LeaveCriticalSection(&G->mCriticalSection);
 }
-static void NextIndexBuffer(HackerDevice *device, void *private_data)
+static void NextIndexBuffer(PenguinDV *device, void *private_data)
 {
 	HuntNext<uint32_t>("index buffer", &G->mVisitedIndexBuffers, &G->mSelectedIndexBuffer, &G->mSelectedIndexBufferPos);
 
@@ -1403,7 +1403,7 @@ static void NextIndexBuffer(HackerDevice *device, void *private_data)
 	G->mSelectedIndexBuffer_VertexShader.clear();
 	LeaveCriticalSection(&G->mCriticalSection);
 }
-static void NextPixelShader(HackerDevice *device, void *private_data)
+static void NextPixelShader(PenguinDV *device, void *private_data)
 {
 	HuntNext<UINT64>("pixel shader", &G->mVisitedPixelShaders, &G->mSelectedPixelShader, &G->mSelectedPixelShaderPos);
 
@@ -1412,7 +1412,7 @@ static void NextPixelShader(HackerDevice *device, void *private_data)
 	G->mSelectedPixelShader_IndexBuffer.clear();
 	LeaveCriticalSection(&G->mCriticalSection);
 }
-static void NextVertexShader(HackerDevice *device, void *private_data)
+static void NextVertexShader(PenguinDV *device, void *private_data)
 {
 	HuntNext<UINT64>("vertex shader", &G->mVisitedVertexShaders, &G->mSelectedVertexShader, &G->mSelectedVertexShaderPos);
 
@@ -1421,23 +1421,23 @@ static void NextVertexShader(HackerDevice *device, void *private_data)
 	G->mSelectedVertexShader_IndexBuffer.clear();
 	LeaveCriticalSection(&G->mCriticalSection);
 }
-static void NextComputeShader(HackerDevice *device, void *private_data)
+static void NextComputeShader(PenguinDV *device, void *private_data)
 {
 	HuntNext<UINT64>("compute shader", &G->mVisitedComputeShaders, &G->mSelectedComputeShader, &G->mSelectedComputeShaderPos);
 }
-static void NextGeometryShader(HackerDevice *device, void *private_data)
+static void NextGeometryShader(PenguinDV *device, void *private_data)
 {
 	HuntNext<UINT64>("geometry shader", &G->mVisitedGeometryShaders, &G->mSelectedGeometryShader, &G->mSelectedGeometryShaderPos);
 }
-static void NextDomainShader(HackerDevice *device, void *private_data)
+static void NextDomainShader(PenguinDV *device, void *private_data)
 {
 	HuntNext<UINT64>("domain shader", &G->mVisitedDomainShaders, &G->mSelectedDomainShader, &G->mSelectedDomainShaderPos);
 }
-static void NextHullShader(HackerDevice *device, void *private_data)
+static void NextHullShader(PenguinDV *device, void *private_data)
 {
 	HuntNext<UINT64>("hull shader", &G->mVisitedHullShaders, &G->mSelectedHullShader, &G->mSelectedHullShaderPos);
 }
-static void NextRenderTarget(HackerDevice *device, void *private_data)
+static void NextRenderTarget(PenguinDV *device, void *private_data)
 {
 	HuntNext<ID3D11Resource *>("render target", &G->mVisitedRenderTargets, &G->mSelectedRenderTarget, &G->mSelectedRenderTargetPos);
 }
@@ -1482,7 +1482,7 @@ out:
 	LeaveCriticalSection(&G->mCriticalSection);
 }
 
-static void PrevVertexBuffer(HackerDevice *device, void *private_data)
+static void PrevVertexBuffer(PenguinDV *device, void *private_data)
 {
 	HuntPrev<uint32_t>("vertex buffer", &G->mVisitedVertexBuffers, &G->mSelectedVertexBuffer, &G->mSelectedVertexBufferPos);
 
@@ -1491,7 +1491,7 @@ static void PrevVertexBuffer(HackerDevice *device, void *private_data)
 	G->mSelectedVertexBuffer_VertexShader.clear();
 	LeaveCriticalSection(&G->mCriticalSection);
 }
-static void PrevIndexBuffer(HackerDevice *device, void *private_data)
+static void PrevIndexBuffer(PenguinDV *device, void *private_data)
 {
 	HuntPrev<uint32_t>("index buffer", &G->mVisitedIndexBuffers, &G->mSelectedIndexBuffer, &G->mSelectedIndexBufferPos);
 
@@ -1500,7 +1500,7 @@ static void PrevIndexBuffer(HackerDevice *device, void *private_data)
 	G->mSelectedIndexBuffer_VertexShader.clear();
 	LeaveCriticalSection(&G->mCriticalSection);
 }
-static void PrevPixelShader(HackerDevice *device, void *private_data)
+static void PrevPixelShader(PenguinDV *device, void *private_data)
 {
 	HuntPrev<UINT64>("pixel shader", &G->mVisitedPixelShaders, &G->mSelectedPixelShader, &G->mSelectedPixelShaderPos);
 
@@ -1509,7 +1509,7 @@ static void PrevPixelShader(HackerDevice *device, void *private_data)
 	G->mSelectedPixelShader_IndexBuffer.clear();
 	LeaveCriticalSection(&G->mCriticalSection);
 }
-static void PrevVertexShader(HackerDevice *device, void *private_data)
+static void PrevVertexShader(PenguinDV *device, void *private_data)
 {
 	HuntPrev<UINT64>("vertex shader", &G->mVisitedVertexShaders, &G->mSelectedVertexShader, &G->mSelectedVertexShaderPos);
 
@@ -1518,23 +1518,23 @@ static void PrevVertexShader(HackerDevice *device, void *private_data)
 	G->mSelectedVertexShader_IndexBuffer.clear();
 	LeaveCriticalSection(&G->mCriticalSection);
 }
-static void PrevComputeShader(HackerDevice *device, void *private_data)
+static void PrevComputeShader(PenguinDV *device, void *private_data)
 {
 	HuntPrev<UINT64>("compute shader", &G->mVisitedComputeShaders, &G->mSelectedComputeShader, &G->mSelectedComputeShaderPos);
 }
-static void PrevGeometryShader(HackerDevice *device, void *private_data)
+static void PrevGeometryShader(PenguinDV *device, void *private_data)
 {
 	HuntPrev<UINT64>("geometry shader", &G->mVisitedGeometryShaders, &G->mSelectedGeometryShader, &G->mSelectedGeometryShaderPos);
 }
-static void PrevDomainShader(HackerDevice *device, void *private_data)
+static void PrevDomainShader(PenguinDV *device, void *private_data)
 {
 	HuntPrev<UINT64>("domain shader", &G->mVisitedDomainShaders, &G->mSelectedDomainShader, &G->mSelectedDomainShaderPos);
 }
-static void PrevHullShader(HackerDevice *device, void *private_data)
+static void PrevHullShader(PenguinDV *device, void *private_data)
 {
 	HuntPrev<UINT64>("hull shader", &G->mVisitedHullShaders, &G->mSelectedHullShader, &G->mSelectedHullShaderPos);
 }
-static void PrevRenderTarget(HackerDevice *device, void *private_data)
+static void PrevRenderTarget(PenguinDV *device, void *private_data)
 {
 	HuntPrev<ID3D11Resource *>("render target", &G->mVisitedRenderTargets, &G->mSelectedRenderTarget, &G->mSelectedRenderTargetPos);
 }
@@ -1576,7 +1576,7 @@ err:
 	LogOverlay(LOG_WARNING, "> error copying %s hash %0*llx to clipboard\n", type, hash_len, (UINT64)hash);
 }
 
-static void MarkVertexBuffer(HackerDevice *device, void *private_data)
+static void MarkVertexBuffer(PenguinDV *device, void *private_data)
 {
 	if (G->hunting != HUNTING_MODE_ENABLED)
 		return;
@@ -1600,7 +1600,7 @@ static void MarkVertexBuffer(HackerDevice *device, void *private_data)
 	LeaveCriticalSection(&G->mCriticalSection);
 }
 
-static void MarkIndexBuffer(HackerDevice *device, void *private_data)
+static void MarkIndexBuffer(PenguinDV *device, void *private_data)
 {
 	if (G->hunting != HUNTING_MODE_ENABLED)
 		return;
@@ -1635,7 +1635,7 @@ static bool MarkShaderBegin(char *type, UINT64 selected)
 
 	return true;
 }
-static void MarkShaderEnd(HackerDevice *device, char *long_type, char *short_type, UINT64 selected)
+static void MarkShaderEnd(PenguinDV *device, char *long_type, char *short_type, UINT64 selected)
 {
 	// Clears any notices currently displayed on the overlay. This ensures
 	// that any notices that haven't timed out yet (e.g. from a previous
@@ -1664,7 +1664,7 @@ static void MarkShaderEnd(HackerDevice *device, char *long_type, char *short_typ
 	LeaveCriticalSection(&G->mCriticalSection);
 }
 
-static void MarkPixelShader(HackerDevice *device, void *private_data)
+static void MarkPixelShader(PenguinDV *device, void *private_data)
 {
 	if (!MarkShaderBegin("pixel shader", G->mSelectedPixelShader))
 		return;
@@ -1679,7 +1679,7 @@ static void MarkPixelShader(HackerDevice *device, void *private_data)
 	MarkShaderEnd(device, "pixel shader", "ps", G->mSelectedPixelShader);
 }
 
-static void MarkVertexShader(HackerDevice *device, void *private_data)
+static void MarkVertexShader(PenguinDV *device, void *private_data)
 {
 	if (!MarkShaderBegin("vertex shader", G->mSelectedVertexShader))
 		return;
@@ -1694,14 +1694,14 @@ static void MarkVertexShader(HackerDevice *device, void *private_data)
 	MarkShaderEnd(device, "vertex shader", "vs", G->mSelectedVertexShader);
 }
 
-static void MarkComputeShader(HackerDevice *device, void *private_data)
+static void MarkComputeShader(PenguinDV *device, void *private_data)
 {
 	if (!MarkShaderBegin("compute shader", G->mSelectedComputeShader))
 		return;
 	MarkShaderEnd(device, "computer shader", "cs", G->mSelectedComputeShader);
 }
 
-static void MarkGeometryShader(HackerDevice *device, void *private_data)
+static void MarkGeometryShader(PenguinDV *device, void *private_data)
 {
 	if (!MarkShaderBegin("geometry shader", G->mSelectedGeometryShader))
 		return;
@@ -1712,7 +1712,7 @@ static void MarkGeometryShader(HackerDevice *device, void *private_data)
 	MarkShaderEnd(device, "geometry shader", "gs", G->mSelectedGeometryShader);
 }
 
-static void MarkDomainShader(HackerDevice *device, void *private_data)
+static void MarkDomainShader(PenguinDV *device, void *private_data)
 {
 	if (!MarkShaderBegin("domain shader", G->mSelectedDomainShader))
 		return;
@@ -1723,7 +1723,7 @@ static void MarkDomainShader(HackerDevice *device, void *private_data)
 	MarkShaderEnd(device, "domain shader", "ds", G->mSelectedDomainShader);
 }
 
-static void MarkHullShader(HackerDevice *device, void *private_data)
+static void MarkHullShader(PenguinDV *device, void *private_data)
 {
 	if (!MarkShaderBegin("hull shader", G->mSelectedHullShader))
 		return;
@@ -1756,7 +1756,7 @@ static uint32_t LogRenderTarget(ID3D11Resource *target, char *log_prefix)
 	return orig_hash;
 }
 
-static void MarkRenderTarget(HackerDevice *device, void *private_data)
+static void MarkRenderTarget(PenguinDV *device, void *private_data)
 {
 	uint32_t hash;
 
@@ -1781,7 +1781,7 @@ static void MarkRenderTarget(HackerDevice *device, void *private_data)
 }
 
 
-static void TuneUp(HackerDevice *device, void *private_data)
+static void TuneUp(PenguinDV *device, void *private_data)
 {
 	intptr_t index = (intptr_t)private_data;
 
@@ -1792,7 +1792,7 @@ static void TuneUp(HackerDevice *device, void *private_data)
 	LogInfo("> Value %Ii tuned to %f\n", index + 1, G->gTuneValue[index]);
 }
 
-static void TuneDown(HackerDevice *device, void *private_data)
+static void TuneDown(PenguinDV *device, void *private_data)
 {
 	intptr_t index = (intptr_t)private_data;
 
@@ -1821,7 +1821,7 @@ void TimeoutHuntingBuffers()
 }
 
 // User has requested all shaders be re-enabled
-static void DoneHunting(HackerDevice *device, void *private_data)
+static void DoneHunting(PenguinDV *device, void *private_data)
 {
 	if (G->hunting != HUNTING_MODE_ENABLED)
 		return;
@@ -1863,7 +1863,7 @@ static void DoneHunting(HackerDevice *device, void *private_data)
 	LeaveCriticalSection(&G->mCriticalSection);
 }
 
-static void ToggleHunting(HackerDevice *device, void *private_data)
+static void ToggleHunting(PenguinDV *device, void *private_data)
 {
 	if (G->hunting == HUNTING_MODE_ENABLED)
 		G->hunting = HUNTING_MODE_SOFT_DISABLED;

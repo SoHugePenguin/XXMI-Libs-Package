@@ -1,4 +1,4 @@
-LIBRARY d3d11.dll
+﻿LIBRARY d3d11.dll
 
 HEAPSIZE 10485760
 
@@ -109,4 +109,5 @@ EXPORTS
 ; 3DMigoto exports that are not found in the real d3d11.dll
 ; We are not exporting an ordinal here, since a text string is less likely to
 ; clash with any future changes to the real d3d11.dll or another wrapper.
+
 CBTProc

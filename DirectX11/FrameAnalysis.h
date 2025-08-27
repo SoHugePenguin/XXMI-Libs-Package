@@ -1,7 +1,7 @@
 #pragma once
 
 #include <d3d11_1.h>
-#include "HackerContext.h"
+#include "PenguinDC.h"
 
 // {2AEE5B3A-68ED-44E9-AA4D-9EAA6315D72B}
 DEFINE_GUID(IID_FrameAnalysisContext,
@@ -85,7 +85,7 @@ typedef std::unique_ptr<FrameAnalysisDeferredTex2D> FrameAnalysisDeferredTex2DPt
 // straight forward object implementing an interface. Accessing it as
 // ID3D11DeviceContext will work just as well thanks to interface inheritance.
 
-class FrameAnalysisContext : public HackerContext
+class FrameAnalysisContext : public PenguinDC
 {
 private:
 	template <class ID3D11Shader>

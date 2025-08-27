@@ -1,4 +1,4 @@
-// Must include this before including any of the d3d headers to have
+﻿// Must include this before including any of the d3d headers to have
 // DEFINE_GUID work for the IIDs:
 #include <INITGUID.h>
 
@@ -33,8 +33,8 @@
 #include "log.h"
 
 // For 3DMigoto IIDs:
-#include "DirectX11/HackerDevice.h"
-#include "DirectX11/HackerContext.h"
+#include "DirectX11/PenguinDV.h"
+#include "DirectX11/PenguinDC.h"
 #include "DirectX11/FrameAnalysis.h"
 
 struct IID_name {
@@ -57,8 +57,8 @@ static const struct IID_name known_interfaces[] = {
 	IID(IUnknown),
 
 	// 3DMigoto interfaces:
-	IID(HackerDevice),
-	IID(HackerContext),
+	IID(PenguinDV),
+	IID(PenguinDC),
 	IID(FrameAnalysisContext),
 
 	// Third party tools:

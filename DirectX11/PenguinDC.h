@@ -7,24 +7,24 @@
 
 #include "CommandList.h"
 
-#include "HackerDevice.h"
+#include "PenguinDV.h"
 //#include "ResourceHash.h"
 #include "Globals.h"
 
 // {A3046B1E-336B-4D90-9FD6-234BC09B8687}
-DEFINE_GUID(IID_HackerContext,
+DEFINE_GUID(IID_PenguinDC,
 0xa3046b1e, 0x336b, 0x4d90, 0x9f, 0xd6, 0x23, 0x4b, 0xc0, 0x9b, 0x86, 0x87);
 
 
 // Self forward reference for the factory interface.
-class HackerContext;
+class PenguinDC;
 
-HackerContext* HackerContextFactory(ID3D11Device1 *pDevice1, ID3D11DeviceContext1 *pContext1);
+PenguinDC* PenguinDCFactory(ID3D11Device1 *pDevice1, ID3D11DeviceContext1 *pContext1);
 
 // Forward declaration to allow circular reference between HackerContext and HackerDevice. 
 // We need this to allow each to reference the other as needed.
 
-class HackerDevice;
+class PenguinDV;
 
 enum class FrameAnalysisOptions;
 struct ShaderOverride;
@@ -106,13 +106,13 @@ struct MappedResourceInfo {
 // Hierarchy:
 //  HackerContext <- ID3D11DeviceContext1 <- ID3D11DeviceContext <- ID3D11DeviceChild <- IUnknown
 
-class HackerContext : public ID3D11DeviceContext1
+class PenguinDC : public ID3D11DeviceContext1
 {
 private:
 	ID3D11Device1 *mOrigDevice1;
 	ID3D11DeviceContext1 *mOrigContext1;
 	ID3D11DeviceContext1 *mRealOrigContext1;
-	HackerDevice *mHackerDevice;
+    PenguinDV *mPenguinDV;
 
 	// These are per-context, moved from globals.h:
 	uint32_t mCurrentVertexBuffers[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT];
@@ -207,10 +207,10 @@ protected:
 	UINT64 mCurrentComputeShader;
 
 public:
-	HackerContext(ID3D11Device1 *pDevice1, ID3D11DeviceContext1 *pContext1);
+    PenguinDC(ID3D11Device1 *pDevice1, ID3D11DeviceContext1 *pContext1);
 
-	void SetHackerDevice(HackerDevice *pDevice);
-	HackerDevice* GetHackerDevice();
+	void SetPenguinDV(PenguinDV *pDevice);
+    PenguinDV* GetPenguinDV();
 	void Bind3DMigotoResources();
 	void InitIniParams();
 	ID3D11DeviceContext1* GetPossiblyHookedOrigContext1();

@@ -3,8 +3,6 @@
   <ItemGroup>
     <ClCompile Include="D3D11Wrapper.cpp" />
     <ClCompile Include="DLLMainHook.cpp" />
-    <ClCompile Include="HackerContext.cpp" />
-    <ClCompile Include="HackerDevice.cpp" />
     <ClCompile Include="Hunting.cpp" />
     <ClCompile Include="IniHandler.cpp" />
     <ClCompile Include="Input.cpp" />
@@ -29,15 +27,18 @@
     <ClCompile Include="lock.cpp" />
     <ClCompile Include="cursor.cpp" />
     <ClCompile Include="Override.cpp" />
+    <ClCompile Include="PenguinDC.cpp" />
+    <ClCompile Include="PenguinDV.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="d3d11Wrapper.def" />
+    <None Include="..\courierbold.spritefont" />
+    <None Include="..\couriersmall.spritefont" />
+    <None Include="..\arial.spritefont" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="D3D11Wrapper.h" />
     <ClInclude Include="Globals.h" />
-    <ClInclude Include="HackerContext.h" />
-    <ClInclude Include="HackerDevice.h" />
     <ClInclude Include="Hunting.h" />
     <ClInclude Include="IniHandler.h" />
     <ClInclude Include="Input.h" />
@@ -62,6 +63,9 @@
     <ClInclude Include="lock.h" />
     <ClInclude Include="cursor.h" />
     <ClInclude Include="Override.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="PenguinDC.h" />
+    <ClInclude Include="PenguinDV.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="DirectX11.rc" />

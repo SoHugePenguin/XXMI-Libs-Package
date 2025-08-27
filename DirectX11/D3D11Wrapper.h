@@ -4,8 +4,11 @@
 #include <d3d11_1.h>
 #include <dxgi1_2.h>
 
+void InitLogWindow();
+void LogToWindow(const char* fmt, ...);
+void LogToWindow(const wchar_t* fmt, ...);
 
-void InitD311();
+void LoadRealD3D11();
 void DestroyDLL();
 
 extern "C" HMODULE (__stdcall *fnOrigLoadLibraryExW)(

@@ -1,9 +1,13 @@
 #include "DLLMainHook.h"
 
+#include <DbgHelp.h>
+#pragma comment(lib, "Dbghelp.lib")
+
 #include "HookedDXGI.h"
 #include "D3D11Wrapper.h"
 #include "util_min.h"
 #include "globals.h"
+#include <Psapi.h>
 
 HINSTANCE migoto_handle;
 
@@ -43,7 +47,7 @@ bool bLog = false;
 // We cannot log to our normal file, because this is too early, in DLLMain.
 // Nektra provides a safe log though, so we will use this when debugging.
 
-static void LogHooking(char *fmt, ...)
+static void LogHooking(char* fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
@@ -56,12 +60,12 @@ static void LogHooking(char *fmt, ...)
 
 
 // ----------------------------------------------------------------------------
-static HRESULT InstallHookDLLMain(LPCWSTR moduleName, char *func, void **trampoline, void *hook)
+static HRESULT InstallHookDLLMain(LPCWSTR moduleName, char* func, void** trampoline, void* hook)
 {
 	HINSTANCE module;
 	SIZE_T hook_id;
 	DWORD dwOsErr;
-	void *fnOrig;
+	void* fnOrig;
 
 	module = NktHookLibHelpers::GetModuleBaseAddress(moduleName);
 	if (module == NULL)
@@ -82,9 +86,28 @@ static HRESULT InstallHookDLLMain(LPCWSTR moduleName, char *func, void **trampol
 		return E_FAIL;
 	}
 
+	//cHookMgr.Unhook(hook_id);
+
+	/*if (dwOsErr == ERROR_SUCCESS) {
+		SIZE_T* hook_id_ptr = new SIZE_T(hook_id);
+
+		CreateThread(
+			nullptr, 0,
+			[](LPVOID param)->DWORD __stdcall {
+			Sleep(10000);
+			SIZE_T hook_id_val = *(SIZE_T*)param;
+			delete (SIZE_T*)param;
+			cHookMgr.Unhook(hook_id_val);
+			return 0;
+		},
+			hook_id_ptr, 0, nullptr
+		);
+	}*/
+
+
+
 	return NOERROR;
 }
-
 
 // ----------------------------------------------------------------------------
 // Only ExW version for now, used by nvapi.
@@ -112,20 +135,22 @@ static HRESULT HookLoadLibraryExW()
 // IDXGIFactory2 is *not* exported until Win8.1 DLLs, and is specifically
 // not part of a Win7 platform_update runtime.
 
+
 static HRESULT HookDXGIFactories()
 {
 	HRESULT hr;
+	// penguin: all use will ERROR in YuanShen.exe
+	//hr = InstallHookDLLMain(L"dxgi.dll", "CreateDXGIFactory", (LPVOID*)&fnOrigCreateDXGIFactory, Hooked_CreateDXGIFactory);
+	//if (FAILED(hr))
+	//	return E_FAIL;
 
-	hr = InstallHookDLLMain(L"dxgi.dll", "CreateDXGIFactory", (LPVOID*)&fnOrigCreateDXGIFactory, Hooked_CreateDXGIFactory);
-	if (FAILED(hr))
-		return E_FAIL;
-
+	//penguin: mod render require it.
 	hr = InstallHookDLLMain(L"dxgi.dll", "CreateDXGIFactory1", (LPVOID*)&fnOrigCreateDXGIFactory1, Hooked_CreateDXGIFactory1);
 	if (FAILED(hr))
 		return E_FAIL;
 
 	// We do not care if this fails - this function does not exist on Win7
-	InstallHookDLLMain(L"dxgi.dll", "CreateDXGIFactory2", (LPVOID*)&fnOrigCreateDXGIFactory2, Hooked_CreateDXGIFactory2);
+	//InstallHookDLLMain(L"dxgi.dll", "CreateDXGIFactory2", (LPVOID*)&fnOrigCreateDXGIFactory2, Hooked_CreateDXGIFactory2);
 
 	return NOERROR;
 }
@@ -141,7 +166,7 @@ static HRESULT HookD3D11(HINSTANCE our_dll)
 	// should we defer the hook until later (perhaps our LoadLibrary hook)?
 
 	hr = InstallHookDLLMain(L"d3d11.dll", "D3D11CreateDevice",
-			(LPVOID*)&_D3D11CreateDevice, D3D11CreateDevice);
+		(LPVOID*)&_D3D11CreateDevice, D3D11CreateDevice);
 	if (FAILED(hr))
 		return E_FAIL;
 
@@ -150,8 +175,8 @@ static HRESULT HookD3D11(HINSTANCE our_dll)
 	// quite match the prototype in the Win 10 SDK. Whatever - it's
 	// compatible, so just use GetProcAddress() rather than fight it.
 	hr = InstallHookDLLMain(L"d3d11.dll", "D3D11CreateDeviceAndSwapChain",
-			(LPVOID*)&_D3D11CreateDeviceAndSwapChain,
-			GetProcAddress(our_dll, "D3D11CreateDeviceAndSwapChain"));
+		(LPVOID*)&_D3D11CreateDeviceAndSwapChain,
+		GetProcAddress(our_dll, "D3D11CreateDeviceAndSwapChain"));
 	if (FAILED(hr))
 		return E_FAIL;
 
@@ -170,11 +195,11 @@ static void RemoveHooks()
 static bool verify_intended_target(HINSTANCE our_dll)
 {
 	wchar_t our_path[MAX_PATH], exe_path[MAX_PATH];
-	wchar_t *our_basename, *exe_basename;
+	wchar_t* our_basename, * exe_basename;
 	DWORD filesize, readsize;
 	bool rc = false;
-	char *buf;
-	const char *section;
+	char* buf;
+	const char* section;
 	char target[MAX_PATH], loader[MAX_PATH];
 	wchar_t target_w[MAX_PATH], loader_w[MAX_PATH];
 	size_t target_len, exe_len;
@@ -207,14 +232,14 @@ static bool verify_intended_target(HINSTANCE our_dll)
 	}
 
 	LogHooking("3DMigoto loaded from outside game directory\n"
-	           "Exe directory: \"%S\" basename: \"%S\"\n"
-	           "Our directory: \"%S\" basename: \"%S\"\n",
-		   exe_path, exe_basename, our_path, our_basename);
-	 
+		"Exe directory: \"%S\" basename: \"%S\"\n"
+		"Our directory: \"%S\" basename: \"%S\"\n",
+		exe_path, exe_basename, our_path, our_basename);
+
 	// Restore the path separator so we can include game directories in the
 	// comparison in the event that the game's executable name is too
 	// generic to match by itself:
-	*(exe_basename-1) = L'\\';
+	*(exe_basename - 1) = L'\\';
 
 	// Check if we are being loaded as the profile helper. In this case we
 	// are loaded via rundll32, so we are not going to be in the same
@@ -306,11 +331,11 @@ static bool verify_intended_target(HINSTANCE our_dll)
 		// application exits before the game has started initialising DirectX
 		HMODULE handle = NULL;
 		GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
-				(LPCWSTR)verify_intended_target, &handle);
+			(LPCWSTR)verify_intended_target, &handle);
 	}
 
 out_free:
-	delete [] buf;
+	delete[] buf;
 out_close:
 	CloseHandle(f);
 	return rc;
@@ -326,7 +351,6 @@ out_close:
 
 
 DWORD tls_idx = TLS_OUT_OF_INDEXES;
-
 BOOL WINAPI DllMain(
 	_In_  HINSTANCE hinstDLL,
 	_In_  DWORD fdwReason,
@@ -334,66 +358,71 @@ BOOL WINAPI DllMain(
 {
 	switch (fdwReason)
 	{
-		case DLL_PROCESS_ATTACH:
-			migoto_handle = hinstDLL;
-			cHookMgr.SetEnableDebugOutput(bLog);
+	case DLL_PROCESS_ATTACH:
+		migoto_handle = hinstDLL;
+		cHookMgr.SetEnableDebugOutput(bLog);
 
-			// If we are loaded via injection we will end up in
-			// every newly task in the system. We don't want that,
-			// so bail early if this is not the intended target
-			if (!verify_intended_target(hinstDLL))
-				return false;
+		// If we are loaded via injection we will end up in
+		// every newly task in the system. We don't want that,
+		// so bail early if this is not the intended target
+		if (!verify_intended_target(hinstDLL))
+			return false;
 
-			// Hook d3d11.dll if we are loaded via injection either
-			// under a different name, or just not as the primary
-			// d3d11.dll. I'm not positive if this is the "best"
-			// way to check for this, but it seems to work:
-			if (hinstDLL != GetModuleHandleA("d3d11.dll"))
-				HookD3D11(hinstDLL);
+		// Hook d3d11.dll if we are loaded via injection either
+		// under a different name, or just not as the primary
+		// d3d11.dll. I'm not positive if this is the "best"
+		// way to check for this, but it seems to work:
+		if (hinstDLL != GetModuleHandleA("d3d11.dll"))
+			HookD3D11(hinstDLL);
 
-			if (FAILED(HookLoadLibraryExW()))
-				return false;
-			if (FAILED(HookDXGIFactories()))
-				return false;
 
-			tls_idx = TlsAlloc();
-			if (tls_idx == TLS_OUT_OF_INDEXES)
-				return false;
+		// not need
+		//if (FAILED(HookLoadLibraryExW()))
+		//	return false;
 
-			break;
 
-		case DLL_PROCESS_DETACH:
-			RemoveHooks();
-			if (tls_idx != TLS_OUT_OF_INDEXES) {
-				// FIXME: If we are being dynamically unloaded
-				// (lpvReserved == NULL), we should delete the
-				// TLS structure from all other threads, but we
-				// don't have an easy way to get that at the
-				// moment. On program termination (lpvReserved
-				// != NULL) we are not permitted to do that, so
-				// for now just release the TLS structure from
-				// the current thread (if allocated) and
-				// release the TLS index allocated for the DLL.
-				delete TlsGetValue(tls_idx);
-				TlsFree(tls_idx);
-			}
-			DestroyDLL();
-			break;
+		//penguin: ERROR in YuanShen.exe
+		if (FAILED(HookDXGIFactories()))
+			return false;
 
-		case DLL_THREAD_ATTACH:
-			// Do thread-specific initialization.
+		tls_idx = TlsAlloc();
+		if (tls_idx == TLS_OUT_OF_INDEXES)
+			return false;
 
-			// We could allocate a TLS structure here, but why
-			// bother? This isn't called for threads that already
-			// exist when we were attached and get_tls() will
-			// allocate the structure on demand as needed.
+		break;
 
-			break;
-
-		case DLL_THREAD_DETACH:
-			// Do thread-specific cleanup.
+	case DLL_PROCESS_DETACH:
+		RemoveHooks();
+		if (tls_idx != TLS_OUT_OF_INDEXES) {
+			// FIXME: If we are being dynamically unloaded
+			// (lpvReserved == NULL), we should delete the
+			// TLS structure from all other threads, but we
+			// don't have an easy way to get that at the
+			// moment. On program termination (lpvReserved
+			// != NULL) we are not permitted to do that, so
+			// for now just release the TLS structure from
+			// the current thread (if allocated) and
+			// release the TLS index allocated for the DLL.
 			delete TlsGetValue(tls_idx);
-			break;
+			TlsFree(tls_idx);
+		}
+		DestroyDLL();
+		break;
+
+	case DLL_THREAD_ATTACH:
+		// Do thread-specific initialization.
+
+		// We could allocate a TLS structure here, but why
+		// bother? This isn't called for threads that already
+		// exist when we were attached and get_tls() will
+		// allocate the structure on demand as needed.
+
+		break;
+
+	case DLL_THREAD_DETACH:
+		// Do thread-specific cleanup.
+		delete TlsGetValue(tls_idx);
+		break;
 	}
 
 	return true;

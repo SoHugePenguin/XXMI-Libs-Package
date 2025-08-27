@@ -15,8 +15,8 @@
 #include "Globals.h"
 #include "profiling.h"
 
-#include "HackerDevice.h"
-#include "HackerContext.h"
+#include "PenguinDV.h"
+#include "PenguinDC.h"
 
 #include <stdexcept>
 
@@ -76,20 +76,20 @@ struct LogLevelParams log_levels[] = {
 const int maxstring = 1024;
 
 
-Overlay::Overlay(HackerDevice *pDevice, HackerContext *pContext, IDXGISwapChain *pSwapChain)
+Overlay::Overlay(PenguinDV *pDevice, PenguinDC *pContext, IDXGISwapChain *pSwapChain)
 {
 	LogInfo("Overlay::Overlay created for %p\n", pSwapChain);
-	LogInfo("  on HackerDevice: %p, HackerContext: %p\n", pDevice, pContext);
+	LogInfo("  on PenguinDV: %p, PenguinDC: %p\n", pDevice, pContext);
 
 	// Drawing environment for this swap chain. This is the game environment.
 	// These should specifically avoid Hacker* objects, to avoid object
 	// callbacks or other problems. We just want to draw here, nothing tricky.
-	mHackerDevice = pDevice;
-	mHackerContext = pContext;
+	mPenguinDV = pDevice;
+	mPenguinDC = pContext;
 	mOrigSwapChain = pSwapChain;
 
 	// Must use trampoline context to prevent 3DMigoto hunting its own overlay:
-	mOrigDevice = mHackerDevice->GetPassThroughOrigDevice1();
+	mOrigDevice = mPenguinDV->GetPassThroughOrigDevice1();
 	mOrigContext = pContext->GetPassThroughOrigContext1();
 
 	// We are actively using the Device and Context, so we need to make
@@ -112,8 +112,8 @@ Overlay::Overlay(HackerDevice *pDevice, HackerContext *pContext, IDXGISwapChain 
 	// now, so this is technically unecessary, but since the overlay code
 	// still accesses these it is more safer to leave this in place (more
 	// resistant to code changes in the swap chain breaking this).
-	mHackerDevice->AddRef();
-	mHackerContext->AddRef();
+	mPenguinDV->AddRef();
+	mPenguinDC->AddRef();
 
 	// The courierbold.spritefont is now included as binary resource data attached
 	// to the d3d11.dll.  We can fetch that resource and pass it to new SpriteFont
@@ -185,8 +185,8 @@ Overlay::~Overlay()
 	// We Release the same interface we called AddRef on, and we use the
 	// Hacker interfaces to make sure that our cleanup code is run if this
 	// is the last reference.
-	mHackerContext->Release();
-	mHackerDevice->Release();
+	mPenguinDC->Release();
+	mPenguinDV->Release();
 }
 
 

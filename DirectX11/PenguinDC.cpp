@@ -10,14 +10,14 @@
 // Hierarchy:
 //  HackerContext <- ID3D11DeviceContext1 <- ID3D11DeviceContext <- ID3D11DeviceChild <- IUnknown
 
-#include "HackerContext.h"
+#include "PenguinDC.h"
 
 //#include "HookedContext.h"
 
 #include "log.h"
 #include "Globals.h"
 
-#include "HackerDevice.h"
+#include "PenguinDV.h"
 #include "D3D11Wrapper.h"
 //#include "ResourceHash.h"
 //#include "Override.h"
@@ -27,7 +27,7 @@
 
 // -----------------------------------------------------------------------------------------------
 
-HackerContext* HackerContextFactory(ID3D11Device1 *pDevice1, ID3D11DeviceContext1 *pContext1)
+PenguinDC* PenguinDCFactory(ID3D11Device1 *pDevice1, ID3D11DeviceContext1 *pContext1)
 {
 	// We can either create a straight HackerContext, or a souped up
 	// FrameAnalysisContext that provides more functionality, at the cost
@@ -59,16 +59,16 @@ HackerContext* HackerContextFactory(ID3D11Device1 *pDevice1, ID3D11DeviceContext
 		return new FrameAnalysisContext(pDevice1, pContext1);
 	}
 
-	LogInfo("  Creating HackerContext - frame analysis log will not be available\n");
-	return new HackerContext(pDevice1, pContext1);
+	LogInfo("  Creating PenguinDC - frame analysis log will not be available\n");
+	return new PenguinDC(pDevice1, pContext1);
 }
 
-HackerContext::HackerContext(ID3D11Device1 *pDevice1, ID3D11DeviceContext1 *pContext1)
+PenguinDC::PenguinDC(ID3D11Device1 *pDevice1, ID3D11DeviceContext1 *pContext1)
 {
 	mOrigDevice1 = pDevice1;
 	mOrigContext1 = pContext1;
 	mRealOrigContext1 = pContext1;
-	mHackerDevice = NULL;
+	mPenguinDV = NULL;
 
 	memset(mCurrentVertexBuffers, 0, sizeof(mCurrentVertexBuffers));
 	mCurrentIndexBuffer = 0;
@@ -93,14 +93,14 @@ HackerContext::HackerContext(ID3D11Device1 *pDevice1, ID3D11DeviceContext1 *pCon
 // Save the corresponding HackerDevice, as we need to use it periodically to get
 // access to the StereoParams.
 
-void HackerContext::SetHackerDevice(HackerDevice *pDevice)
+void PenguinDC::SetPenguinDV(PenguinDV *pDevice)
 {
-	mHackerDevice = pDevice;
+	mPenguinDV = pDevice;
 }
 
-HackerDevice* HackerContext::GetHackerDevice()
+PenguinDV* PenguinDC::GetPenguinDV()
 {
-	return mHackerDevice;
+	return mPenguinDV;
 }
 
 // Returns the "real" DirectX object. Note that if hooking is enabled calls
@@ -109,7 +109,7 @@ HackerDevice* HackerContext::GetHackerDevice()
 // undesirable in some cases. This used to cause a crash if a command list
 // issued a draw call, since that would then trigger the command list and
 // recurse until the stack ran out:
-ID3D11DeviceContext1* HackerContext::GetPossiblyHookedOrigContext1(void)
+ID3D11DeviceContext1* PenguinDC::GetPossiblyHookedOrigContext1(void)
 {
 	return mRealOrigContext1;
 }
@@ -117,12 +117,12 @@ ID3D11DeviceContext1* HackerContext::GetPossiblyHookedOrigContext1(void)
 // Use this one when you specifically don't want calls through this object to
 // ever go back into 3DMigoto. If hooking is disabled this is identical to the
 // above, but when hooking this will be the trampoline object instead:
-ID3D11DeviceContext1* HackerContext::GetPassThroughOrigContext1(void)
+ID3D11DeviceContext1* PenguinDC::GetPassThroughOrigContext1(void)
 {
 	return mOrigContext1;
 }
 
-void HackerContext::HookContext()
+void PenguinDC::HookContext()
 {
 	// This will install hooks in the original context (if they have not
 	// already been installed from a prior context) which will call the
@@ -139,7 +139,7 @@ void HackerContext::HookContext()
 // Records the hash of this shader resource view for later lookup. Returns the
 // handle to the resource, but be aware that it no longer has a reference and
 // should only be used for map lookups.
-ID3D11Resource* HackerContext::RecordResourceViewStats(ID3D11View *view, std::set<uint32_t> *resource_info)
+ID3D11Resource* PenguinDC::RecordResourceViewStats(ID3D11View *view, std::set<uint32_t> *resource_info)
 {
 	ID3D11Resource *resource = NULL;
 	uint32_t orig_hash = 0;
@@ -180,7 +180,7 @@ static ResourceSnapshot SnapshotResource(ID3D11Resource *handle)
 	return ResourceSnapshot(handle, hash, orig_hash);
 }
 
-void HackerContext::_RecordShaderResourceUsage(ShaderInfoData *shader_info, ID3D11ShaderResourceView *views[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT])
+void PenguinDC::_RecordShaderResourceUsage(ShaderInfoData *shader_info, ID3D11ShaderResourceView *views[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT])
 {
 	ID3D11Resource *resource;
 	int i;
@@ -195,7 +195,7 @@ void HackerContext::_RecordShaderResourceUsage(ShaderInfoData *shader_info, ID3D
 	}
 }
 
-void HackerContext::RecordPeerShaders(std::set<UINT64> *PeerShaders, UINT64 this_shader_hash)
+void PenguinDC::RecordPeerShaders(std::set<UINT64> *PeerShaders, UINT64 this_shader_hash)
 {
 	if (mCurrentVertexShader && mCurrentVertexShader != this_shader_hash)
 		PeerShaders->insert(mCurrentVertexShader);
@@ -218,7 +218,7 @@ template <void (__stdcall ID3D11DeviceContext::*GetShaderResources)(THIS_
 		UINT StartSlot,
 		UINT NumViews,
 		ID3D11ShaderResourceView **ppShaderResourceViews)>
-void HackerContext::RecordShaderResourceUsage(std::map<UINT64, ShaderInfoData> &ShaderInfo, UINT64 currentShader)
+void PenguinDC::RecordShaderResourceUsage(std::map<UINT64, ShaderInfoData> &ShaderInfo, UINT64 currentShader)
 {
 	ID3D11ShaderResourceView *views[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT];
 	ShaderInfoData *info;
@@ -234,7 +234,7 @@ void HackerContext::RecordShaderResourceUsage(std::map<UINT64, ShaderInfoData> &
 	LeaveCriticalSection(&G->mCriticalSection);
 }
 
-void HackerContext::RecordGraphicsShaderStats()
+void PenguinDC::RecordGraphicsShaderStats()
 {
 	ID3D11UnorderedAccessView *uavs[D3D11_1_UAV_SLOT_COUNT]; // DX11: 8, DX11.1: 64
 	UINT selectedRenderTargetPos;
@@ -305,7 +305,7 @@ void HackerContext::RecordGraphicsShaderStats()
 		Profiling::end(&profiling_state, &Profiling::stat_overhead);
 }
 
-void HackerContext::RecordComputeShaderStats()
+void PenguinDC::RecordComputeShaderStats()
 {
 	ID3D11ShaderResourceView *srvs[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT];
 	ID3D11UnorderedAccessView *uavs[D3D11_1_UAV_SLOT_COUNT]; // DX11: 8, DX11.1: 64
@@ -343,7 +343,7 @@ void HackerContext::RecordComputeShaderStats()
 	LeaveCriticalSection(&G->mCriticalSection);
 }
 
-void HackerContext::RecordRenderTargetInfo(ID3D11RenderTargetView *target, UINT view_num)
+void PenguinDC::RecordRenderTargetInfo(ID3D11RenderTargetView *target, UINT view_num)
 {
 	D3D11_RENDER_TARGET_VIEW_DESC desc;
 	ID3D11Resource *resource = NULL;
@@ -377,7 +377,7 @@ out_unlock:
 	LeaveCriticalSection(&G->mCriticalSection);
 }
 
-void HackerContext::RecordDepthStencil(ID3D11DepthStencilView *target)
+void PenguinDC::RecordDepthStencil(ID3D11DepthStencilView *target)
 {
 	D3D11_DEPTH_STENCIL_VIEW_DESC desc;
 	ID3D11Resource *resource = NULL;
@@ -406,7 +406,7 @@ void HackerContext::RecordDepthStencil(ID3D11DepthStencilView *target)
 	LeaveCriticalSection(&G->mCriticalSection);
 }
 
-ID3D11VertexShader* HackerContext::SwitchVSShader(ID3D11VertexShader *shader)
+ID3D11VertexShader* PenguinDC::SwitchVSShader(ID3D11VertexShader *shader)
 {
 
 	ID3D11VertexShader *pVertexShader;
@@ -423,7 +423,7 @@ ID3D11VertexShader* HackerContext::SwitchVSShader(ID3D11VertexShader *shader)
 	return pVertexShader;
 }
 
-ID3D11PixelShader* HackerContext::SwitchPSShader(ID3D11PixelShader *shader)
+ID3D11PixelShader* PenguinDC::SwitchPSShader(ID3D11PixelShader *shader)
 {
 
 	ID3D11PixelShader *pPixelShader;
@@ -441,7 +441,7 @@ ID3D11PixelShader* HackerContext::SwitchPSShader(ID3D11PixelShader *shader)
 }
 
 #define ENABLE_LEGACY_FILTERS 1
-void HackerContext::ProcessShaderOverride(ShaderOverride *shaderOverride, bool isPixelShader, DrawContext *data)
+void PenguinDC::ProcessShaderOverride(ShaderOverride *shaderOverride, bool isPixelShader, DrawContext *data)
 {
 	bool use_orig = false;
 
@@ -476,7 +476,7 @@ void HackerContext::ProcessShaderOverride(ShaderOverride *shaderOverride, bool i
 		}
 	}
 
-	RunCommandList(mHackerDevice, this, &shaderOverride->command_list, &data->call_info, false);
+	RunCommandList(mPenguinDV, this, &shaderOverride->command_list, &data->call_info, false);
 
 	if (ENABLE_LEGACY_FILTERS) {
 		// Deprecated since the logic can be moved into the shaders with far more flexibility
@@ -513,7 +513,7 @@ template <class ID3D11Shader,
 	void (__stdcall ID3D11DeviceContext::*SetShaderVS2013BUGWORKAROUND)(ID3D11Shader*, ID3D11ClassInstance*const*, UINT),
 	HRESULT (__stdcall ID3D11Device::*CreateShader)(const void*, SIZE_T, ID3D11ClassLinkage*, ID3D11Shader**)
 >
-void HackerContext::DeferredShaderReplacement(ID3D11DeviceChild *shader, UINT64 hash, wchar_t *shader_type)
+void PenguinDC::DeferredShaderReplacement(ID3D11DeviceChild *shader, UINT64 hash, wchar_t *shader_type)
 {
 	ID3D11Shader *orig_shader = NULL, *patched_shader = NULL;
 	ID3D11ClassInstance *class_instances[256];
@@ -646,7 +646,7 @@ out_drop:
 	LeaveCriticalSection(&G->mCriticalSection);
 }
 
-void HackerContext::DeferredShaderReplacementBeforeDraw()
+void PenguinDC::DeferredShaderReplacementBeforeDraw()
 {
 	Profiling::State profiling_state;
 
@@ -696,7 +696,7 @@ void HackerContext::DeferredShaderReplacementBeforeDraw()
 		Profiling::end(&profiling_state, &Profiling::shaderregex_overhead);
 }
 
-void HackerContext::DeferredShaderReplacementBeforeDispatch()
+void PenguinDC::DeferredShaderReplacementBeforeDispatch()
 {
 	if (shader_regex_groups.empty())
 		return;
@@ -712,7 +712,7 @@ void HackerContext::DeferredShaderReplacementBeforeDispatch()
 }
 
 
-void HackerContext::BeforeDraw(DrawContext &data)
+void PenguinDC::BeforeDraw(DrawContext &data)
 {
 	Profiling::State profiling_state;
 
@@ -862,7 +862,7 @@ out_profile:
 		Profiling::end(&profiling_state, &Profiling::draw_overhead);
 }
 
-void HackerContext::AfterDraw(DrawContext &data)
+void PenguinDC::AfterDraw(DrawContext &data)
 {
 	int i;
 	Profiling::State profiling_state;
@@ -875,7 +875,7 @@ void HackerContext::AfterDraw(DrawContext &data)
 
 	for (i = 0; i < 5; i++) {
 		if (data.post_commands[i]) {
-			RunCommandList(mHackerDevice, this, data.post_commands[i], &data.call_info, true);
+			RunCommandList(mPenguinDV, this, data.post_commands[i], &data.call_info, true);
 		}
 	}
 
@@ -900,7 +900,7 @@ void HackerContext::AfterDraw(DrawContext &data)
 
 // -----------------------------------------------------------------------------------------------
 
-ULONG STDMETHODCALLTYPE HackerContext::AddRef(void)
+ULONG STDMETHODCALLTYPE PenguinDC::AddRef(void)
 {
 	return mOrigContext1->AddRef();
 }
@@ -909,22 +909,22 @@ ULONG STDMETHODCALLTYPE HackerContext::AddRef(void)
 // Must set the reference that the HackerDevice uses to null, because otherwise
 // we see that dead reference reused in GetImmediateContext, in FC4.
 
-STDMETHODIMP_(ULONG) HackerContext::Release(THIS)
+STDMETHODIMP_(ULONG) PenguinDC::Release(THIS)
 {
 	ULONG ulRef = mOrigContext1->Release();
-	LogDebug("HackerContext::Release counter=%d, this=%p\n", ulRef, this);
+	LogDebug("PenguinDC::Release counter=%d, this=%p\n", ulRef, this);
 
 	if (ulRef <= 0)
 	{
 		LogInfo("  deleting self\n");
 
-		if (mHackerDevice != nullptr) {
-			if (mHackerDevice->GetHackerContext() == this) {
-				LogInfo("  clearing mHackerDevice->mHackerContext\n");
-				mHackerDevice->SetHackerContext(nullptr);
+		if (mPenguinDV != nullptr) {
+			if (mPenguinDV->GetPenguinDC() == this) {
+				LogInfo("  clearing mPenguinDV->mPenguinDC\n");
+				mPenguinDV->SetPenguinDC(nullptr);
 			}
 		} else
-			LogInfo("HackerContext::Release - mHackerDevice is NULL\n");
+			LogInfo("PenguinDC::Release - mPenguinDV is NULL\n");
 
 		delete this;
 		return 0L;
@@ -936,13 +936,13 @@ STDMETHODIMP_(ULONG) HackerContext::Release(THIS)
 // the ID3D11DeviceContext.  That's right, it calls to get the exact
 // same object that it is using to call.  I swear.
 
-HRESULT STDMETHODCALLTYPE HackerContext::QueryInterface(
+HRESULT STDMETHODCALLTYPE PenguinDC::QueryInterface(
 	/* [in] */ REFIID riid,
 	/* [iid_is][out] */ _COM_Outptr_ void __RPC_FAR *__RPC_FAR *ppvObject)
 {
-	LogDebug("HackerContext::QueryInterface(%s@%p) called with IID: %s\n", type_name(this), this, NameFromIID(riid).c_str());
+	LogDebug("PenguinDC::QueryInterface(%s@%p) called with IID: %s\n", type_name(this), this, NameFromIID(riid).c_str());
 
-	if (ppvObject && IsEqualIID(riid, IID_HackerContext)) {
+	if (ppvObject && IsEqualIID(riid, IID_PenguinDC)) {
 		// This is a special case - only 3DMigoto itself should know
 		// this IID, so this is us checking if it has a HackerContext.
 		// There's no need to call through to DX for this one.
@@ -963,7 +963,7 @@ HRESULT STDMETHODCALLTYPE HackerContext::QueryInterface(
 	if (riid == __uuidof(ID3D11DeviceContext))
 	{
 		*ppvObject = this;
-		LogDebug("  return HackerContext(%s@%p) wrapper of %p\n", type_name(this), this, mOrigContext1);
+		LogDebug("  return PenguinDC(%s@%p) wrapper of %p\n", type_name(this), this, mOrigContext1);
 	}
 	else if (riid == __uuidof(ID3D11DeviceContext1))
 	{
@@ -980,7 +980,7 @@ HRESULT STDMETHODCALLTYPE HackerContext::QueryInterface(
 
 		// In this case, we are already an ID3D11DeviceContext1, so just return self.
 		*ppvObject = this;
-		LogDebug("  return HackerContext(%s@%p) wrapper of %p\n", type_name(this), this, ppvObject);
+		LogDebug("  return PenguinDC(%s@%p) wrapper of %p\n", type_name(this), this, ppvObject);
 	}
 
 	LogDebug("  returns result = %x for %p\n", hr, ppvObject);
@@ -999,11 +999,11 @@ HRESULT STDMETHODCALLTYPE HackerContext::QueryInterface(
 // The previous version of this call would fetch the HackerDevice from a list
 // and thus this new approach may be broken.
 
-STDMETHODIMP_(void) HackerContext::GetDevice(THIS_
+STDMETHODIMP_(void) PenguinDC::GetDevice(THIS_
 	/* [annotation] */
 	__out  ID3D11Device **ppDevice)
 {
-	LogDebug("HackerContext::GetDevice(%s@%p) returns %p\n", type_name(this), this, mHackerDevice);
+	LogDebug("PenguinDC::GetDevice(%s@%p) returns %p\n", type_name(this), this, mPenguinDV);
 
 	// Fix ref counting bug that slowly eats away at the device until we
 	// crash. In FC4 this can happen after about 10 minutes, or when
@@ -1015,10 +1015,10 @@ STDMETHODIMP_(void) HackerContext::GetDevice(THIS_
 
 	// Return our wrapped device though.
 	if (!(G->enable_hooks & EnableHooks::DEVICE))
-		*ppDevice = mHackerDevice;
+		*ppDevice = mPenguinDV;
 }
 
-STDMETHODIMP HackerContext::GetPrivateData(THIS_
+STDMETHODIMP PenguinDC::GetPrivateData(THIS_
 	/* [annotation] */
 	__in  REFGUID guid,
 	/* [annotation] */
@@ -1026,7 +1026,7 @@ STDMETHODIMP HackerContext::GetPrivateData(THIS_
 	/* [annotation] */
 	__out_bcount_opt(*pDataSize)  void *pData)
 {
-	LogDebug("HackerContext::GetPrivateData(%s@%p) called with IID: %s\n", type_name(this), this, NameFromIID(guid).c_str());
+	LogDebug("PenguinDC::GetPrivateData(%s@%p) called with IID: %s\n", type_name(this), this, NameFromIID(guid).c_str());
 
 	HRESULT hr = mOrigContext1->GetPrivateData(guid, pDataSize, pData);
 	LogDebug("  returns result = %x, DataSize = %d\n", hr, *pDataSize);
@@ -1034,7 +1034,7 @@ STDMETHODIMP HackerContext::GetPrivateData(THIS_
 	return hr;
 }
 
-STDMETHODIMP HackerContext::SetPrivateData(THIS_
+STDMETHODIMP PenguinDC::SetPrivateData(THIS_
 	/* [annotation] */
 	__in  REFGUID guid,
 	/* [annotation] */
@@ -1042,7 +1042,7 @@ STDMETHODIMP HackerContext::SetPrivateData(THIS_
 	/* [annotation] */
 	__in_bcount_opt(DataSize)  const void *pData)
 {
-	LogInfo("HackerContext::SetPrivateData(%s@%p) called with IID: %s\n", type_name(this), this, NameFromIID(guid).c_str());
+	LogInfo("PenguinDC::SetPrivateData(%s@%p) called with IID: %s\n", type_name(this), this, NameFromIID(guid).c_str());
 	LogInfo("  DataSize = %d\n", DataSize);
 
 	HRESULT hr = mOrigContext1->SetPrivateData(guid, DataSize, pData);
@@ -1051,13 +1051,13 @@ STDMETHODIMP HackerContext::SetPrivateData(THIS_
 	return hr;
 }
 
-STDMETHODIMP HackerContext::SetPrivateDataInterface(THIS_
+STDMETHODIMP PenguinDC::SetPrivateDataInterface(THIS_
 	/* [annotation] */
 	__in  REFGUID guid,
 	/* [annotation] */
 	__in_opt  const IUnknown *pData)
 {
-	LogInfo("HackerContext::SetPrivateDataInterface(%s@%p) called with IID: %s\n", type_name(this), this, NameFromIID(guid).c_str());
+	LogInfo("PenguinDC::SetPrivateDataInterface(%s@%p) called with IID: %s\n", type_name(this), this, NameFromIID(guid).c_str());
 
 	HRESULT hr = mOrigContext1->SetPrivateDataInterface(guid, pData);
 	LogInfo("  returns result = %x\n", hr);
@@ -1073,7 +1073,7 @@ STDMETHODIMP HackerContext::SetPrivateDataInterface(THIS_
 // They need to be here in order to pass along the calls, since there is no proper object where
 // it would normally go to the superclass. 
 
-STDMETHODIMP_(void) HackerContext::VSSetConstantBuffers(THIS_
+STDMETHODIMP_(void) PenguinDC::VSSetConstantBuffers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1084,7 +1084,7 @@ STDMETHODIMP_(void) HackerContext::VSSetConstantBuffers(THIS_
 	mOrigContext1->VSSetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers);
 }
 
-bool HackerContext::MapDenyCPURead(
+bool PenguinDC::MapDenyCPURead(
 	ID3D11Resource *pResource,
 	UINT Subresource,
 	D3D11_MAP MapType,
@@ -1113,7 +1113,7 @@ bool HackerContext::MapDenyCPURead(
 	return i->second.begin()->deny_cpu_read;
 }
 
-void HackerContext::TrackAndDivertMap(HRESULT map_hr, ID3D11Resource *pResource,
+void PenguinDC::TrackAndDivertMap(HRESULT map_hr, ID3D11Resource *pResource,
 		UINT Subresource, D3D11_MAP MapType, UINT MapFlags,
 		D3D11_MAPPED_SUBRESOURCE *pMappedResource)
 {
@@ -1224,7 +1224,7 @@ out_profile:
 		Profiling::end(&profiling_state, &Profiling::map_overhead);
 }
 
-void HackerContext::TrackAndDivertUnmap(ID3D11Resource *pResource, UINT Subresource)
+void PenguinDC::TrackAndDivertUnmap(ID3D11Resource *pResource, UINT Subresource)
 {
 	MappedResources::iterator i;
 	MappedResourceInfo *map_info = NULL;
@@ -1259,7 +1259,7 @@ out_profile:
 		Profiling::end(&profiling_state, &Profiling::map_overhead);
 }
 
-STDMETHODIMP HackerContext::Map(THIS_
+STDMETHODIMP PenguinDC::Map(THIS_
 	/* [annotation] */
 	__in  ID3D11Resource *pResource,
 	/* [annotation] */
@@ -1280,7 +1280,7 @@ STDMETHODIMP HackerContext::Map(THIS_
 	return hr;
 }
 
-STDMETHODIMP_(void) HackerContext::Unmap(THIS_
+STDMETHODIMP_(void) PenguinDC::Unmap(THIS_
 	/* [annotation] */
 	__in ID3D11Resource *pResource,
 	/* [annotation] */
@@ -1290,7 +1290,7 @@ STDMETHODIMP_(void) HackerContext::Unmap(THIS_
 	mOrigContext1->Unmap(pResource, Subresource);
 }
 
-STDMETHODIMP_(void) HackerContext::PSSetConstantBuffers(THIS_
+STDMETHODIMP_(void) PenguinDC::PSSetConstantBuffers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1301,14 +1301,14 @@ STDMETHODIMP_(void) HackerContext::PSSetConstantBuffers(THIS_
 	 mOrigContext1->PSSetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers);
 }
 
-STDMETHODIMP_(void) HackerContext::IASetInputLayout(THIS_
+STDMETHODIMP_(void) PenguinDC::IASetInputLayout(THIS_
 	/* [annotation] */
 	__in_opt ID3D11InputLayout *pInputLayout)
 {
 	 mOrigContext1->IASetInputLayout(pInputLayout);
 }
 
-STDMETHODIMP_(void) HackerContext::IASetVertexBuffers(THIS_
+STDMETHODIMP_(void) PenguinDC::IASetVertexBuffers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1335,7 +1335,7 @@ STDMETHODIMP_(void) HackerContext::IASetVertexBuffers(THIS_
 	 }
 }
 
-STDMETHODIMP_(void) HackerContext::GSSetConstantBuffers(THIS_
+STDMETHODIMP_(void) PenguinDC::GSSetConstantBuffers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1346,7 +1346,7 @@ STDMETHODIMP_(void) HackerContext::GSSetConstantBuffers(THIS_
 	 mOrigContext1->GSSetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers);
 }
 
-STDMETHODIMP_(void) HackerContext::GSSetShader(THIS_
+STDMETHODIMP_(void) PenguinDC::GSSetShader(THIS_
 	/* [annotation] */
 	__in_opt ID3D11GeometryShader *pShader,
 	/* [annotation] */
@@ -1361,14 +1361,14 @@ STDMETHODIMP_(void) HackerContext::GSSetShader(THIS_
 		 &mCurrentGeometryShaderHandle);
 }
 
-STDMETHODIMP_(void) HackerContext::IASetPrimitiveTopology(THIS_
+STDMETHODIMP_(void) PenguinDC::IASetPrimitiveTopology(THIS_
 	/* [annotation] */
 	__in D3D11_PRIMITIVE_TOPOLOGY Topology)
 {
 	 mOrigContext1->IASetPrimitiveTopology(Topology);
 }
 
-STDMETHODIMP_(void) HackerContext::VSSetSamplers(THIS_
+STDMETHODIMP_(void) PenguinDC::VSSetSamplers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1379,7 +1379,7 @@ STDMETHODIMP_(void) HackerContext::VSSetSamplers(THIS_
 	 mOrigContext1->VSSetSamplers(StartSlot, NumSamplers, ppSamplers);
 }
 
-STDMETHODIMP_(void) HackerContext::PSSetSamplers(THIS_
+STDMETHODIMP_(void) PenguinDC::PSSetSamplers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1390,21 +1390,21 @@ STDMETHODIMP_(void) HackerContext::PSSetSamplers(THIS_
 	mOrigContext1->PSSetSamplers(StartSlot, NumSamplers, ppSamplers);
 }
 
-STDMETHODIMP_(void) HackerContext::Begin(THIS_
+STDMETHODIMP_(void) PenguinDC::Begin(THIS_
 	/* [annotation] */
 	__in  ID3D11Asynchronous *pAsync)
 {
 	mOrigContext1->Begin(pAsync);
 }
 
-STDMETHODIMP_(void) HackerContext::End(THIS_
+STDMETHODIMP_(void) PenguinDC::End(THIS_
 	/* [annotation] */
 	__in  ID3D11Asynchronous *pAsync)
 {
 	 mOrigContext1->End(pAsync);
 }
 
-STDMETHODIMP HackerContext::GetData(THIS_
+STDMETHODIMP PenguinDC::GetData(THIS_
 	/* [annotation] */
 	__in  ID3D11Asynchronous *pAsync,
 	/* [annotation] */
@@ -1417,7 +1417,7 @@ STDMETHODIMP HackerContext::GetData(THIS_
 	return mOrigContext1->GetData(pAsync, pData, DataSize, GetDataFlags);
 }
 
-STDMETHODIMP_(void) HackerContext::SetPredication(THIS_
+STDMETHODIMP_(void) PenguinDC::SetPredication(THIS_
 	/* [annotation] */
 	__in_opt ID3D11Predicate *pPredicate,
 	/* [annotation] */
@@ -1426,7 +1426,7 @@ STDMETHODIMP_(void) HackerContext::SetPredication(THIS_
 	return mOrigContext1->SetPredication(pPredicate, PredicateValue);
 }
 
-STDMETHODIMP_(void) HackerContext::GSSetShaderResources(THIS_
+STDMETHODIMP_(void) PenguinDC::GSSetShaderResources(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1437,7 +1437,7 @@ STDMETHODIMP_(void) HackerContext::GSSetShaderResources(THIS_
 	SetShaderResources<&ID3D11DeviceContext::GSSetShaderResources>(StartSlot, NumViews, ppShaderResourceViews);
 }
 
-STDMETHODIMP_(void) HackerContext::GSSetSamplers(THIS_
+STDMETHODIMP_(void) PenguinDC::GSSetSamplers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1448,7 +1448,7 @@ STDMETHODIMP_(void) HackerContext::GSSetSamplers(THIS_
 	 mOrigContext1->GSSetSamplers(StartSlot, NumSamplers, ppSamplers);
 }
 
-STDMETHODIMP_(void) HackerContext::OMSetBlendState(THIS_
+STDMETHODIMP_(void) PenguinDC::OMSetBlendState(THIS_
 	/* [annotation] */
 	__in_opt  ID3D11BlendState *pBlendState,
 	/* [annotation] */
@@ -1459,7 +1459,7 @@ STDMETHODIMP_(void) HackerContext::OMSetBlendState(THIS_
 	 mOrigContext1->OMSetBlendState(pBlendState, BlendFactor, SampleMask);
 }
 
-STDMETHODIMP_(void) HackerContext::OMSetDepthStencilState(THIS_
+STDMETHODIMP_(void) PenguinDC::OMSetDepthStencilState(THIS_
 	/* [annotation] */
 	__in_opt  ID3D11DepthStencilState *pDepthStencilState,
 	/* [annotation] */
@@ -1468,7 +1468,7 @@ STDMETHODIMP_(void) HackerContext::OMSetDepthStencilState(THIS_
 	 mOrigContext1->OMSetDepthStencilState(pDepthStencilState, StencilRef);
 }
 
-STDMETHODIMP_(void) HackerContext::SOSetTargets(THIS_
+STDMETHODIMP_(void) PenguinDC::SOSetTargets(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_SO_BUFFER_SLOT_COUNT)  UINT NumBuffers,
 	/* [annotation] */
@@ -1479,7 +1479,7 @@ STDMETHODIMP_(void) HackerContext::SOSetTargets(THIS_
 	 mOrigContext1->SOSetTargets(NumBuffers, ppSOTargets, pOffsets);
 }
 
-bool HackerContext::BeforeDispatch(DispatchContext *context)
+bool PenguinDC::BeforeDispatch(DispatchContext *context)
 {
 	if (G->hunting == HUNTING_MODE_ENABLED) {
 		if (G->DumpUsage)
@@ -1507,7 +1507,7 @@ bool HackerContext::BeforeDispatch(DispatchContext *context)
 			// lot of it's logic doesn't really apply to
 			// compute shaders. The main thing we care
 			// about is the command list, so just run that:
-			RunCommandList(mHackerDevice, this, &i->second.command_list, &context->call_info, false);
+			RunCommandList(mPenguinDV, this, &i->second.command_list, &context->call_info, false);
 			return !context->call_info.skip;
 		}
 	}
@@ -1515,13 +1515,13 @@ bool HackerContext::BeforeDispatch(DispatchContext *context)
 	return true;
 }
 
-void HackerContext::AfterDispatch(DispatchContext *context)
+void PenguinDC::AfterDispatch(DispatchContext *context)
 {
 	if (context->post_commands)
-		RunCommandList(mHackerDevice, this, context->post_commands, &context->call_info, true);
+		RunCommandList(mPenguinDV, this, context->post_commands, &context->call_info, true);
 }
 
-STDMETHODIMP_(void) HackerContext::Dispatch(THIS_
+STDMETHODIMP_(void) PenguinDC::Dispatch(THIS_
 	/* [annotation] */
 	__in  UINT ThreadGroupCountX,
 	/* [annotation] */
@@ -1539,7 +1539,7 @@ STDMETHODIMP_(void) HackerContext::Dispatch(THIS_
 	AfterDispatch(&context);
 }
 
-STDMETHODIMP_(void) HackerContext::DispatchIndirect(THIS_
+STDMETHODIMP_(void) PenguinDC::DispatchIndirect(THIS_
 	/* [annotation] */
 	__in  ID3D11Buffer *pBufferForArgs,
 	/* [annotation] */
@@ -1555,14 +1555,14 @@ STDMETHODIMP_(void) HackerContext::DispatchIndirect(THIS_
 	AfterDispatch(&context);
 }
 
-STDMETHODIMP_(void) HackerContext::RSSetState(THIS_
+STDMETHODIMP_(void) PenguinDC::RSSetState(THIS_
 	/* [annotation] */
 	__in_opt  ID3D11RasterizerState *pRasterizerState)
 {
 	 mOrigContext1->RSSetState(pRasterizerState);
 }
 
-STDMETHODIMP_(void) HackerContext::RSSetViewports(THIS_
+STDMETHODIMP_(void) PenguinDC::RSSetViewports(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE)  UINT NumViewports,
 	/* [annotation] */
@@ -1571,7 +1571,7 @@ STDMETHODIMP_(void) HackerContext::RSSetViewports(THIS_
 	 mOrigContext1->RSSetViewports(NumViewports, pViewports);
 }
 
-STDMETHODIMP_(void) HackerContext::RSSetScissorRects(THIS_
+STDMETHODIMP_(void) PenguinDC::RSSetScissorRects(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE)  UINT NumRects,
 	/* [annotation] */
@@ -1585,7 +1585,7 @@ STDMETHODIMP_(void) HackerContext::RSSetScissorRects(THIS_
  * colour render target to a texture as an input for transparent refraction
  * effects. Expands the rectange to the full width.
  */
-bool HackerContext::ExpandRegionCopy(ID3D11Resource *pDstResource, UINT DstX,
+bool PenguinDC::ExpandRegionCopy(ID3D11Resource *pDstResource, UINT DstX,
 		UINT DstY, ID3D11Resource *pSrcResource, const D3D11_BOX *pSrcBox,
 		UINT *replaceDstX, D3D11_BOX *replaceBox)
 {
@@ -1630,7 +1630,7 @@ bool HackerContext::ExpandRegionCopy(ID3D11Resource *pDstResource, UINT DstX,
 	return true;
 }
 
-STDMETHODIMP_(void) HackerContext::CopySubresourceRegion(THIS_
+STDMETHODIMP_(void) PenguinDC::CopySubresourceRegion(THIS_
 	/* [annotation] */
 	__in  ID3D11Resource *pDstResource,
 	/* [annotation] */
@@ -1671,7 +1671,7 @@ STDMETHODIMP_(void) HackerContext::CopySubresourceRegion(THIS_
 		PropagateResourceHash(pDstResource, pSrcResource);
 }
 
-STDMETHODIMP_(void) HackerContext::CopyResource(THIS_
+STDMETHODIMP_(void) PenguinDC::CopyResource(THIS_
 	/* [annotation] */
 	__in  ID3D11Resource *pDstResource,
 	/* [annotation] */
@@ -1722,7 +1722,7 @@ STDMETHODIMP_(void) HackerContext::CopyResource(THIS_
 		PropagateResourceHash(pDstResource, pSrcResource);
 }
 
-STDMETHODIMP_(void) HackerContext::UpdateSubresource(THIS_
+STDMETHODIMP_(void) PenguinDC::UpdateSubresource(THIS_
 	/* [annotation] */
 	__in  ID3D11Resource *pDstResource,
 	/* [annotation] */
@@ -1753,7 +1753,7 @@ STDMETHODIMP_(void) HackerContext::UpdateSubresource(THIS_
 		UpdateResourceHashFromCPU(pDstResource, pSrcData, SrcRowPitch, SrcDepthPitch);
 }
 
-STDMETHODIMP_(void) HackerContext::CopyStructureCount(THIS_
+STDMETHODIMP_(void) PenguinDC::CopyStructureCount(THIS_
 	/* [annotation] */
 	__in  ID3D11Buffer *pDstBuffer,
 	/* [annotation] */
@@ -1764,29 +1764,29 @@ STDMETHODIMP_(void) HackerContext::CopyStructureCount(THIS_
 	 mOrigContext1->CopyStructureCount(pDstBuffer, DstAlignedByteOffset, pSrcView);
 }
 
-STDMETHODIMP_(void) HackerContext::ClearUnorderedAccessViewUint(THIS_
+STDMETHODIMP_(void) PenguinDC::ClearUnorderedAccessViewUint(THIS_
 	/* [annotation] */
 	__in  ID3D11UnorderedAccessView *pUnorderedAccessView,
 	/* [annotation] */
 	__in  const UINT Values[4])
 {
-	RunViewCommandList(mHackerDevice, this, &G->clear_uav_uint_command_list, pUnorderedAccessView, false);
+	RunViewCommandList(mPenguinDV, this, &G->clear_uav_uint_command_list, pUnorderedAccessView, false);
 	mOrigContext1->ClearUnorderedAccessViewUint(pUnorderedAccessView, Values);
-	RunViewCommandList(mHackerDevice, this, &G->post_clear_uav_uint_command_list, pUnorderedAccessView, true);
+	RunViewCommandList(mPenguinDV, this, &G->post_clear_uav_uint_command_list, pUnorderedAccessView, true);
 }
 
-STDMETHODIMP_(void) HackerContext::ClearUnorderedAccessViewFloat(THIS_
+STDMETHODIMP_(void) PenguinDC::ClearUnorderedAccessViewFloat(THIS_
 	/* [annotation] */
 	__in  ID3D11UnorderedAccessView *pUnorderedAccessView,
 	/* [annotation] */
 	__in  const FLOAT Values[4])
 {
-	RunViewCommandList(mHackerDevice, this, &G->clear_uav_float_command_list, pUnorderedAccessView, false);
+	RunViewCommandList(mPenguinDV, this, &G->clear_uav_float_command_list, pUnorderedAccessView, false);
 	mOrigContext1->ClearUnorderedAccessViewFloat(pUnorderedAccessView, Values);
-	RunViewCommandList(mHackerDevice, this, &G->post_clear_uav_float_command_list, pUnorderedAccessView, true);
+	RunViewCommandList(mPenguinDV, this, &G->post_clear_uav_float_command_list, pUnorderedAccessView, true);
 }
 
-STDMETHODIMP_(void) HackerContext::ClearDepthStencilView(THIS_
+STDMETHODIMP_(void) PenguinDC::ClearDepthStencilView(THIS_
 	/* [annotation] */
 	__in  ID3D11DepthStencilView *pDepthStencilView,
 	/* [annotation] */
@@ -1796,19 +1796,19 @@ STDMETHODIMP_(void) HackerContext::ClearDepthStencilView(THIS_
 	/* [annotation] */
 	__in  UINT8 Stencil)
 {
-	RunViewCommandList(mHackerDevice, this, &G->clear_dsv_command_list, pDepthStencilView, false);
+	RunViewCommandList(mPenguinDV, this, &G->clear_dsv_command_list, pDepthStencilView, false);
 	mOrigContext1->ClearDepthStencilView(pDepthStencilView, ClearFlags, Depth, Stencil);
-	RunViewCommandList(mHackerDevice, this, &G->post_clear_dsv_command_list, pDepthStencilView, true);
+	RunViewCommandList(mPenguinDV, this, &G->post_clear_dsv_command_list, pDepthStencilView, true);
 }
 
-STDMETHODIMP_(void) HackerContext::GenerateMips(THIS_
+STDMETHODIMP_(void) PenguinDC::GenerateMips(THIS_
 	/* [annotation] */
 	__in  ID3D11ShaderResourceView *pShaderResourceView)
 {
 	 mOrigContext1->GenerateMips(pShaderResourceView);
 }
 
-STDMETHODIMP_(void) HackerContext::SetResourceMinLOD(THIS_
+STDMETHODIMP_(void) PenguinDC::SetResourceMinLOD(THIS_
 	/* [annotation] */
 	__in  ID3D11Resource *pResource,
 	FLOAT MinLOD)
@@ -1816,7 +1816,7 @@ STDMETHODIMP_(void) HackerContext::SetResourceMinLOD(THIS_
 	 mOrigContext1->SetResourceMinLOD(pResource, MinLOD);
 }
 
-STDMETHODIMP_(FLOAT) HackerContext::GetResourceMinLOD(THIS_
+STDMETHODIMP_(FLOAT) PenguinDC::GetResourceMinLOD(THIS_
 	/* [annotation] */
 	__in  ID3D11Resource *pResource)
 {
@@ -1825,7 +1825,7 @@ STDMETHODIMP_(FLOAT) HackerContext::GetResourceMinLOD(THIS_
 	return ret;
 }
 
-STDMETHODIMP_(void) HackerContext::ResolveSubresource(THIS_
+STDMETHODIMP_(void) PenguinDC::ResolveSubresource(THIS_
 	/* [annotation] */
 	__in  ID3D11Resource *pDstResource,
 	/* [annotation] */
@@ -1841,7 +1841,7 @@ STDMETHODIMP_(void) HackerContext::ResolveSubresource(THIS_
 		Format);
 }
 
-STDMETHODIMP_(void) HackerContext::ExecuteCommandList(THIS_
+STDMETHODIMP_(void) PenguinDC::ExecuteCommandList(THIS_
 	/* [annotation] */
 	__in  ID3D11CommandList *pCommandList,
 	BOOL RestoreContextState)
@@ -1857,7 +1857,7 @@ STDMETHODIMP_(void) HackerContext::ExecuteCommandList(THIS_
 	}
 }
 
-STDMETHODIMP_(void) HackerContext::HSSetShaderResources(THIS_
+STDMETHODIMP_(void) PenguinDC::HSSetShaderResources(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1868,7 +1868,7 @@ STDMETHODIMP_(void) HackerContext::HSSetShaderResources(THIS_
 	SetShaderResources<&ID3D11DeviceContext::HSSetShaderResources>(StartSlot, NumViews, ppShaderResourceViews);
 }
 
-STDMETHODIMP_(void) HackerContext::HSSetShader(THIS_
+STDMETHODIMP_(void) PenguinDC::HSSetShader(THIS_
 	/* [annotation] */
 	__in_opt  ID3D11HullShader *pHullShader,
 	/* [annotation] */
@@ -1883,7 +1883,7 @@ STDMETHODIMP_(void) HackerContext::HSSetShader(THIS_
 		 &mCurrentHullShaderHandle);
 }
 
-STDMETHODIMP_(void) HackerContext::HSSetSamplers(THIS_
+STDMETHODIMP_(void) PenguinDC::HSSetSamplers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1894,7 +1894,7 @@ STDMETHODIMP_(void) HackerContext::HSSetSamplers(THIS_
 	 mOrigContext1->HSSetSamplers(StartSlot, NumSamplers, ppSamplers);
 }
 
-STDMETHODIMP_(void) HackerContext::HSSetConstantBuffers(THIS_
+STDMETHODIMP_(void) PenguinDC::HSSetConstantBuffers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1905,7 +1905,7 @@ STDMETHODIMP_(void) HackerContext::HSSetConstantBuffers(THIS_
 	 mOrigContext1->HSSetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers);
 }
 
-STDMETHODIMP_(void) HackerContext::DSSetShaderResources(THIS_
+STDMETHODIMP_(void) PenguinDC::DSSetShaderResources(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1916,7 +1916,7 @@ STDMETHODIMP_(void) HackerContext::DSSetShaderResources(THIS_
 	SetShaderResources<&ID3D11DeviceContext::DSSetShaderResources>(StartSlot, NumViews, ppShaderResourceViews);
 }
 
-STDMETHODIMP_(void) HackerContext::DSSetShader(THIS_
+STDMETHODIMP_(void) PenguinDC::DSSetShader(THIS_
 	/* [annotation] */
 	__in_opt  ID3D11DomainShader *pDomainShader,
 	/* [annotation] */
@@ -1931,7 +1931,7 @@ STDMETHODIMP_(void) HackerContext::DSSetShader(THIS_
 		 &mCurrentDomainShaderHandle);
 }
 
-STDMETHODIMP_(void) HackerContext::DSSetSamplers(THIS_
+STDMETHODIMP_(void) PenguinDC::DSSetSamplers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1942,7 +1942,7 @@ STDMETHODIMP_(void) HackerContext::DSSetSamplers(THIS_
 	 mOrigContext1->DSSetSamplers(StartSlot, NumSamplers, ppSamplers);
 }
 
-STDMETHODIMP_(void) HackerContext::DSSetConstantBuffers(THIS_
+STDMETHODIMP_(void) PenguinDC::DSSetConstantBuffers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1953,7 +1953,7 @@ STDMETHODIMP_(void) HackerContext::DSSetConstantBuffers(THIS_
 	 mOrigContext1->DSSetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers);
 }
 
-STDMETHODIMP_(void) HackerContext::CSSetShaderResources(THIS_
+STDMETHODIMP_(void) PenguinDC::CSSetShaderResources(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1964,7 +1964,7 @@ STDMETHODIMP_(void) HackerContext::CSSetShaderResources(THIS_
 	SetShaderResources<&ID3D11DeviceContext::CSSetShaderResources>(StartSlot, NumViews, ppShaderResourceViews);
 }
 
-STDMETHODIMP_(void) HackerContext::CSSetUnorderedAccessViews(THIS_
+STDMETHODIMP_(void) PenguinDC::CSSetUnorderedAccessViews(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_PS_CS_UAV_REGISTER_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -1994,7 +1994,7 @@ template <class ID3D11Shader,
 			 ID3D11ClassInstance *const *ppClassInstances,
 			 UINT NumClassInstances)
 	 >
-STDMETHODIMP_(void) HackerContext::SetShader(THIS_
+STDMETHODIMP_(void) PenguinDC::SetShader(THIS_
 	/* [annotation] */
 	__in_opt ID3D11Shader *pShader,
 	/* [annotation] */
@@ -2077,7 +2077,7 @@ STDMETHODIMP_(void) HackerContext::SetShader(THIS_
 	(mOrigContext1->*OrigSetShader)(repl_shader, ppClassInstances, NumClassInstances);
 }
 
-STDMETHODIMP_(void) HackerContext::CSSetShader(THIS_
+STDMETHODIMP_(void) PenguinDC::CSSetShader(THIS_
 	/* [annotation] */
 	__in_opt  ID3D11ComputeShader *pComputeShader,
 	/* [annotation] */
@@ -2092,7 +2092,7 @@ STDMETHODIMP_(void) HackerContext::CSSetShader(THIS_
 		 &mCurrentComputeShaderHandle);
 }
 
-STDMETHODIMP_(void) HackerContext::CSSetSamplers(THIS_
+STDMETHODIMP_(void) PenguinDC::CSSetSamplers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2103,7 +2103,7 @@ STDMETHODIMP_(void) HackerContext::CSSetSamplers(THIS_
 	 mOrigContext1->CSSetSamplers(StartSlot, NumSamplers, ppSamplers);
 }
 
-STDMETHODIMP_(void) HackerContext::CSSetConstantBuffers(THIS_
+STDMETHODIMP_(void) PenguinDC::CSSetConstantBuffers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2114,7 +2114,7 @@ STDMETHODIMP_(void) HackerContext::CSSetConstantBuffers(THIS_
 	 mOrigContext1->CSSetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers);
 }
 
-STDMETHODIMP_(void) HackerContext::VSGetConstantBuffers(THIS_
+STDMETHODIMP_(void) PenguinDC::VSGetConstantBuffers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2125,7 +2125,7 @@ STDMETHODIMP_(void) HackerContext::VSGetConstantBuffers(THIS_
 	 mOrigContext1->VSGetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers);
 }
 
-STDMETHODIMP_(void) HackerContext::PSGetShaderResources(THIS_
+STDMETHODIMP_(void) PenguinDC::PSGetShaderResources(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2136,7 +2136,7 @@ STDMETHODIMP_(void) HackerContext::PSGetShaderResources(THIS_
 	 mOrigContext1->PSGetShaderResources(StartSlot, NumViews, ppShaderResourceViews);
 }
 
-STDMETHODIMP_(void) HackerContext::PSGetShader(THIS_
+STDMETHODIMP_(void) PenguinDC::PSGetShader(THIS_
 	/* [annotation] */
 	__out  ID3D11PixelShader **ppPixelShader,
 	/* [annotation] */
@@ -2147,7 +2147,7 @@ STDMETHODIMP_(void) HackerContext::PSGetShader(THIS_
 	 mOrigContext1->PSGetShader(ppPixelShader, ppClassInstances, pNumClassInstances);
 }
 
-STDMETHODIMP_(void) HackerContext::PSGetSamplers(THIS_
+STDMETHODIMP_(void) PenguinDC::PSGetSamplers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2158,7 +2158,7 @@ STDMETHODIMP_(void) HackerContext::PSGetSamplers(THIS_
 	 mOrigContext1->PSGetSamplers(StartSlot, NumSamplers, ppSamplers);
 }
 
-STDMETHODIMP_(void) HackerContext::VSGetShader(THIS_
+STDMETHODIMP_(void) PenguinDC::VSGetShader(THIS_
 	/* [annotation] */
 	__out  ID3D11VertexShader **ppVertexShader,
 	/* [annotation] */
@@ -2171,7 +2171,7 @@ STDMETHODIMP_(void) HackerContext::VSGetShader(THIS_
 	// Todo: At GetShader, we need to return the original shader if it's been reloaded.
 }
 
-STDMETHODIMP_(void) HackerContext::PSGetConstantBuffers(THIS_
+STDMETHODIMP_(void) PenguinDC::PSGetConstantBuffers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2182,14 +2182,14 @@ STDMETHODIMP_(void) HackerContext::PSGetConstantBuffers(THIS_
 	 mOrigContext1->PSGetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers);
 }
 
-STDMETHODIMP_(void) HackerContext::IAGetInputLayout(THIS_
+STDMETHODIMP_(void) PenguinDC::IAGetInputLayout(THIS_
 	/* [annotation] */
 	__out  ID3D11InputLayout **ppInputLayout)
 {
 	 mOrigContext1->IAGetInputLayout(ppInputLayout);
 }
 
-STDMETHODIMP_(void) HackerContext::IAGetVertexBuffers(THIS_
+STDMETHODIMP_(void) PenguinDC::IAGetVertexBuffers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2204,7 +2204,7 @@ STDMETHODIMP_(void) HackerContext::IAGetVertexBuffers(THIS_
 	 mOrigContext1->IAGetVertexBuffers(StartSlot, NumBuffers, ppVertexBuffers, pStrides, pOffsets);
 }
 
-STDMETHODIMP_(void) HackerContext::IAGetIndexBuffer(THIS_
+STDMETHODIMP_(void) PenguinDC::IAGetIndexBuffer(THIS_
 	/* [annotation] */
 	__out_opt  ID3D11Buffer **pIndexBuffer,
 	/* [annotation] */
@@ -2215,7 +2215,7 @@ STDMETHODIMP_(void) HackerContext::IAGetIndexBuffer(THIS_
 	 mOrigContext1->IAGetIndexBuffer(pIndexBuffer, Format, Offset);
 }
 
-STDMETHODIMP_(void) HackerContext::GSGetConstantBuffers(THIS_
+STDMETHODIMP_(void) PenguinDC::GSGetConstantBuffers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2226,7 +2226,7 @@ STDMETHODIMP_(void) HackerContext::GSGetConstantBuffers(THIS_
 	 mOrigContext1->GSGetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers);
 }
 
-STDMETHODIMP_(void) HackerContext::GSGetShader(THIS_
+STDMETHODIMP_(void) PenguinDC::GSGetShader(THIS_
 	/* [annotation] */
 	__out  ID3D11GeometryShader **ppGeometryShader,
 	/* [annotation] */
@@ -2237,14 +2237,14 @@ STDMETHODIMP_(void) HackerContext::GSGetShader(THIS_
 	 mOrigContext1->GSGetShader(ppGeometryShader, ppClassInstances, pNumClassInstances);
 }
 
-STDMETHODIMP_(void) HackerContext::IAGetPrimitiveTopology(THIS_
+STDMETHODIMP_(void) PenguinDC::IAGetPrimitiveTopology(THIS_
 	/* [annotation] */
 	__out  D3D11_PRIMITIVE_TOPOLOGY *pTopology)
 {
 	 mOrigContext1->IAGetPrimitiveTopology(pTopology);
 }
 
-STDMETHODIMP_(void) HackerContext::VSGetShaderResources(THIS_
+STDMETHODIMP_(void) PenguinDC::VSGetShaderResources(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2255,7 +2255,7 @@ STDMETHODIMP_(void) HackerContext::VSGetShaderResources(THIS_
 	 mOrigContext1->VSGetShaderResources(StartSlot, NumViews, ppShaderResourceViews);
 }
 
-STDMETHODIMP_(void) HackerContext::VSGetSamplers(THIS_
+STDMETHODIMP_(void) PenguinDC::VSGetSamplers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2266,7 +2266,7 @@ STDMETHODIMP_(void) HackerContext::VSGetSamplers(THIS_
 	 mOrigContext1->VSGetSamplers(StartSlot, NumSamplers, ppSamplers);
 }
 
-STDMETHODIMP_(void) HackerContext::GetPredication(THIS_
+STDMETHODIMP_(void) PenguinDC::GetPredication(THIS_
 	/* [annotation] */
 	__out_opt  ID3D11Predicate **ppPredicate,
 	/* [annotation] */
@@ -2275,7 +2275,7 @@ STDMETHODIMP_(void) HackerContext::GetPredication(THIS_
 	 mOrigContext1->GetPredication(ppPredicate, pPredicateValue);
 }
 
-STDMETHODIMP_(void) HackerContext::GSGetShaderResources(THIS_
+STDMETHODIMP_(void) PenguinDC::GSGetShaderResources(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2286,7 +2286,7 @@ STDMETHODIMP_(void) HackerContext::GSGetShaderResources(THIS_
 	 mOrigContext1->GSGetShaderResources(StartSlot, NumViews, ppShaderResourceViews);
 }
 
-STDMETHODIMP_(void) HackerContext::GSGetSamplers(THIS_
+STDMETHODIMP_(void) PenguinDC::GSGetSamplers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2297,7 +2297,7 @@ STDMETHODIMP_(void) HackerContext::GSGetSamplers(THIS_
 	 mOrigContext1->GSGetSamplers(StartSlot, NumSamplers, ppSamplers);
 }
 
-STDMETHODIMP_(void) HackerContext::OMGetRenderTargets(THIS_
+STDMETHODIMP_(void) PenguinDC::OMGetRenderTargets(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT)  UINT NumViews,
 	/* [annotation] */
@@ -2308,7 +2308,7 @@ STDMETHODIMP_(void) HackerContext::OMGetRenderTargets(THIS_
 	 mOrigContext1->OMGetRenderTargets(NumViews, ppRenderTargetViews, ppDepthStencilView);
 }
 
-STDMETHODIMP_(void) HackerContext::OMGetRenderTargetsAndUnorderedAccessViews(THIS_
+STDMETHODIMP_(void) PenguinDC::OMGetRenderTargetsAndUnorderedAccessViews(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT)  UINT NumRTVs,
 	/* [annotation] */
@@ -2326,7 +2326,7 @@ STDMETHODIMP_(void) HackerContext::OMGetRenderTargetsAndUnorderedAccessViews(THI
 		UAVStartSlot, NumUAVs, ppUnorderedAccessViews);
 }
 
-STDMETHODIMP_(void) HackerContext::OMGetBlendState(THIS_
+STDMETHODIMP_(void) PenguinDC::OMGetBlendState(THIS_
 	/* [annotation] */
 	__out_opt  ID3D11BlendState **ppBlendState,
 	/* [annotation] */
@@ -2337,7 +2337,7 @@ STDMETHODIMP_(void) HackerContext::OMGetBlendState(THIS_
 	 mOrigContext1->OMGetBlendState(ppBlendState, BlendFactor, pSampleMask);
 }
 
-STDMETHODIMP_(void) HackerContext::OMGetDepthStencilState(THIS_
+STDMETHODIMP_(void) PenguinDC::OMGetDepthStencilState(THIS_
 	/* [annotation] */
 	__out_opt  ID3D11DepthStencilState **ppDepthStencilState,
 	/* [annotation] */
@@ -2346,7 +2346,7 @@ STDMETHODIMP_(void) HackerContext::OMGetDepthStencilState(THIS_
 	 mOrigContext1->OMGetDepthStencilState(ppDepthStencilState, pStencilRef);
 }
 
-STDMETHODIMP_(void) HackerContext::SOGetTargets(THIS_
+STDMETHODIMP_(void) PenguinDC::SOGetTargets(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_SO_BUFFER_SLOT_COUNT)  UINT NumBuffers,
 	/* [annotation] */
@@ -2355,14 +2355,14 @@ STDMETHODIMP_(void) HackerContext::SOGetTargets(THIS_
 	 mOrigContext1->SOGetTargets(NumBuffers, ppSOTargets);
 }
 
-STDMETHODIMP_(void) HackerContext::RSGetState(THIS_
+STDMETHODIMP_(void) PenguinDC::RSGetState(THIS_
 	/* [annotation] */
 	__out  ID3D11RasterizerState **ppRasterizerState)
 {
 	 mOrigContext1->RSGetState(ppRasterizerState);
 }
 
-STDMETHODIMP_(void) HackerContext::RSGetViewports(THIS_
+STDMETHODIMP_(void) PenguinDC::RSGetViewports(THIS_
 	/* [annotation] */
 	__inout /*_range(0, D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE )*/   UINT *pNumViewports,
 	/* [annotation] */
@@ -2371,7 +2371,7 @@ STDMETHODIMP_(void) HackerContext::RSGetViewports(THIS_
 	 mOrigContext1->RSGetViewports(pNumViewports, pViewports);
 }
 
-STDMETHODIMP_(void) HackerContext::RSGetScissorRects(THIS_
+STDMETHODIMP_(void) PenguinDC::RSGetScissorRects(THIS_
 	/* [annotation] */
 	__inout /*_range(0, D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE )*/   UINT *pNumRects,
 	/* [annotation] */
@@ -2380,7 +2380,7 @@ STDMETHODIMP_(void) HackerContext::RSGetScissorRects(THIS_
 	 mOrigContext1->RSGetScissorRects(pNumRects, pRects);
 }
 
-STDMETHODIMP_(void) HackerContext::HSGetShaderResources(THIS_
+STDMETHODIMP_(void) PenguinDC::HSGetShaderResources(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2391,7 +2391,7 @@ STDMETHODIMP_(void) HackerContext::HSGetShaderResources(THIS_
 	 mOrigContext1->HSGetShaderResources(StartSlot, NumViews, ppShaderResourceViews);
 }
 
-STDMETHODIMP_(void) HackerContext::HSGetShader(THIS_
+STDMETHODIMP_(void) PenguinDC::HSGetShader(THIS_
 	/* [annotation] */
 	__out  ID3D11HullShader **ppHullShader,
 	/* [annotation] */
@@ -2402,7 +2402,7 @@ STDMETHODIMP_(void) HackerContext::HSGetShader(THIS_
 	 mOrigContext1->HSGetShader(ppHullShader, ppClassInstances, pNumClassInstances);
 }
 
-STDMETHODIMP_(void) HackerContext::HSGetSamplers(THIS_
+STDMETHODIMP_(void) PenguinDC::HSGetSamplers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2413,7 +2413,7 @@ STDMETHODIMP_(void) HackerContext::HSGetSamplers(THIS_
 	 mOrigContext1->HSGetSamplers(StartSlot, NumSamplers, ppSamplers);
 }
 
-STDMETHODIMP_(void) HackerContext::HSGetConstantBuffers(THIS_
+STDMETHODIMP_(void) PenguinDC::HSGetConstantBuffers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2424,7 +2424,7 @@ STDMETHODIMP_(void) HackerContext::HSGetConstantBuffers(THIS_
 	 mOrigContext1->HSGetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers);
 }
 
-STDMETHODIMP_(void) HackerContext::DSGetShaderResources(THIS_
+STDMETHODIMP_(void) PenguinDC::DSGetShaderResources(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2435,7 +2435,7 @@ STDMETHODIMP_(void) HackerContext::DSGetShaderResources(THIS_
 	 mOrigContext1->DSGetShaderResources(StartSlot, NumViews, ppShaderResourceViews);
 }
 
-STDMETHODIMP_(void) HackerContext::DSGetShader(THIS_
+STDMETHODIMP_(void) PenguinDC::DSGetShader(THIS_
 	/* [annotation] */
 	__out  ID3D11DomainShader **ppDomainShader,
 	/* [annotation] */
@@ -2446,7 +2446,7 @@ STDMETHODIMP_(void) HackerContext::DSGetShader(THIS_
 	 mOrigContext1->DSGetShader(ppDomainShader, ppClassInstances, pNumClassInstances);
 }
 
-STDMETHODIMP_(void) HackerContext::DSGetSamplers(THIS_
+STDMETHODIMP_(void) PenguinDC::DSGetSamplers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2457,7 +2457,7 @@ STDMETHODIMP_(void) HackerContext::DSGetSamplers(THIS_
 	 mOrigContext1->DSGetSamplers(StartSlot, NumSamplers, ppSamplers);
 }
 
-STDMETHODIMP_(void) HackerContext::DSGetConstantBuffers(THIS_
+STDMETHODIMP_(void) PenguinDC::DSGetConstantBuffers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2468,7 +2468,7 @@ STDMETHODIMP_(void) HackerContext::DSGetConstantBuffers(THIS_
 	 mOrigContext1->DSGetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers);
 }
 
-STDMETHODIMP_(void) HackerContext::CSGetShaderResources(THIS_
+STDMETHODIMP_(void) PenguinDC::CSGetShaderResources(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2479,7 +2479,7 @@ STDMETHODIMP_(void) HackerContext::CSGetShaderResources(THIS_
 	 mOrigContext1->CSGetShaderResources(StartSlot, NumViews, ppShaderResourceViews);
 }
 
-STDMETHODIMP_(void) HackerContext::CSGetUnorderedAccessViews(THIS_
+STDMETHODIMP_(void) PenguinDC::CSGetUnorderedAccessViews(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_PS_CS_UAV_REGISTER_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2490,7 +2490,7 @@ STDMETHODIMP_(void) HackerContext::CSGetUnorderedAccessViews(THIS_
 	 mOrigContext1->CSGetUnorderedAccessViews(StartSlot, NumUAVs, ppUnorderedAccessViews);
 }
 
-STDMETHODIMP_(void) HackerContext::CSGetShader(THIS_
+STDMETHODIMP_(void) PenguinDC::CSGetShader(THIS_
 	/* [annotation] */
 	__out  ID3D11ComputeShader **ppComputeShader,
 	/* [annotation] */
@@ -2501,7 +2501,7 @@ STDMETHODIMP_(void) HackerContext::CSGetShader(THIS_
 	 mOrigContext1->CSGetShader(ppComputeShader, ppClassInstances, pNumClassInstances);
 }
 
-STDMETHODIMP_(void) HackerContext::CSGetSamplers(THIS_
+STDMETHODIMP_(void) PenguinDC::CSGetSamplers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2512,7 +2512,7 @@ STDMETHODIMP_(void) HackerContext::CSGetSamplers(THIS_
 	 mOrigContext1->CSGetSamplers(StartSlot, NumSamplers, ppSamplers);
 }
 
-STDMETHODIMP_(void) HackerContext::CSGetConstantBuffers(THIS_
+STDMETHODIMP_(void) PenguinDC::CSGetConstantBuffers(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2523,7 +2523,7 @@ STDMETHODIMP_(void) HackerContext::CSGetConstantBuffers(THIS_
 	 mOrigContext1->CSGetConstantBuffers(StartSlot, NumBuffers, ppConstantBuffers);
 }
 
-STDMETHODIMP_(void) HackerContext::ClearState(THIS)
+STDMETHODIMP_(void) PenguinDC::ClearState(THIS)
 {
 	 mOrigContext1->ClearState();
 
@@ -2532,22 +2532,22 @@ STDMETHODIMP_(void) HackerContext::ClearState(THIS)
 	 Bind3DMigotoResources();
 }
 
-STDMETHODIMP_(void) HackerContext::Flush(THIS)
+STDMETHODIMP_(void) PenguinDC::Flush(THIS)
 {
 	 mOrigContext1->Flush();
 }
 
-STDMETHODIMP_(D3D11_DEVICE_CONTEXT_TYPE) HackerContext::GetType(THIS)
+STDMETHODIMP_(D3D11_DEVICE_CONTEXT_TYPE) PenguinDC::GetType(THIS)
 {
 	return mOrigContext1->GetType();
 }
 
-STDMETHODIMP_(UINT) HackerContext::GetContextFlags(THIS)
+STDMETHODIMP_(UINT) PenguinDC::GetContextFlags(THIS)
 {
 	return mOrigContext1->GetContextFlags();
 }
 
-STDMETHODIMP HackerContext::FinishCommandList(THIS_
+STDMETHODIMP PenguinDC::FinishCommandList(THIS_
 	BOOL RestoreDeferredContextState,
 	/* [annotation] */
 	__out_opt  ID3D11CommandList **ppCommandList)
@@ -2571,22 +2571,22 @@ template <void (__stdcall ID3D11DeviceContext::*OrigSetShaderResources)(THIS_
 		UINT StartSlot,
 		UINT NumViews,
 		ID3D11ShaderResourceView *const *ppShaderResourceViews)>
-void HackerContext::BindResources()
+void PenguinDC::BindResources()
 {
-	if (!mHackerDevice) {
+	if (!mPenguinDV) {
 		LogInfo("  error querying device. Can't set INI parameters texture.\n");
 		return;
 	}
 
 	// Set constants from ini file if they exist
-	if (mHackerDevice->mIniResourceView && G->IniParamsReg >= 0) {
+	if (mPenguinDV->mIniResourceView && G->IniParamsReg >= 0) {
 		LogDebug("  adding ini constants as texture to shader resources in slot %i.\n", G->IniParamsReg);
 
-		(mOrigContext1->*OrigSetShaderResources)(G->IniParamsReg, 1, &mHackerDevice->mIniResourceView);
+		(mOrigContext1->*OrigSetShaderResources)(G->IniParamsReg, 1, &mPenguinDV->mIniResourceView);
 	}
 }
 
-void HackerContext::Bind3DMigotoResources()
+void PenguinDC::Bind3DMigotoResources()
 {
 	// Third generation of binding the stereo resources. We used to do this
 	// in the SetShader calls, but that was problematic in certain games
@@ -2607,7 +2607,7 @@ void HackerContext::Bind3DMigotoResources()
 	BindResources<&ID3D11DeviceContext::CSSetShaderResources>();
 }
 
-void HackerContext::InitIniParams()
+void PenguinDC::InitIniParams()
 {
 	D3D11_MAPPED_SUBRESOURCE mappedResource;
 	HRESULT hr;
@@ -2642,11 +2642,11 @@ void HackerContext::InitIniParams()
 	// overhead won't matter and I don't want to forget about this if
 	// further command list optimisations cause [Constants] to bail out
 	// early and not consider update_params at all.
-	if (mHackerDevice->mIniTexture) {
-		hr = mOrigContext1->Map(mHackerDevice->mIniTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+	if (mPenguinDV->mIniTexture) {
+		hr = mOrigContext1->Map(mPenguinDV->mIniTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
 		if (SUCCEEDED(hr)) {
 			memcpy(mappedResource.pData, G->iniParams.data(), sizeof(DirectX::XMFLOAT4) * G->iniParams.size());
-			mOrigContext1->Unmap(mHackerDevice->mIniTexture, 0);
+			mOrigContext1->Unmap(mPenguinDV->mIniTexture, 0);
 			Profiling::iniparams_updates++;
 		} else {
 			LogInfo("InitIniParams: Map failed\n");
@@ -2654,14 +2654,14 @@ void HackerContext::InitIniParams()
 	}
 
 	// The command list will take care of initialising any non-zero values:
-	RunCommandList(mHackerDevice, this, &G->constants_command_list, NULL, false);
+	RunCommandList(mPenguinDV, this, &G->constants_command_list, NULL, false);
 	// We don't consider persistent globals set in the [Constants] pre
 	// command list as making the user config file dirty, because this
 	// command list includes the user config file's [Constants] itself.
 	// We clear only the low bit here, so that this may be overridden if
 	// an invalid value is found that is scheduled to be removed:
 	G->user_config_dirty &= ~1;
-	RunCommandList(mHackerDevice, this, &G->post_constants_command_list, NULL, true);
+	RunCommandList(mPenguinDV, this, &G->post_constants_command_list, NULL, true);
 
 	// Only want to run [Constants] on initial load and config reload. In
 	// some games we see additional DirectX devices & contexts being
@@ -2689,22 +2689,22 @@ template <void (__stdcall ID3D11DeviceContext::*OrigSetShaderResources)(THIS_
 		UINT StartSlot,
 		UINT NumViews,
 		ID3D11ShaderResourceView *const *ppShaderResourceViews)>
-void HackerContext::SetShaderResources(UINT StartSlot, UINT NumViews,
+void PenguinDC::SetShaderResources(UINT StartSlot, UINT NumViews,
 		ID3D11ShaderResourceView *const *ppShaderResourceViews)
 {
 	ID3D11ShaderResourceView **override_srvs = NULL;
 
-	if (!mHackerDevice)
+	if (!mPenguinDV)
 		return;
 
-	if (mHackerDevice->mIniResourceView && G->IniParamsReg >= 0) {
+	if (mPenguinDV->mIniResourceView && G->IniParamsReg >= 0) {
 		if (NumViews > G->IniParamsReg - StartSlot) {
 			LogDebug("  Game attempted to unbind IniParams, pinning in slot %i\n", G->IniParamsReg);
 			if (!override_srvs) {
 				override_srvs = new ID3D11ShaderResourceView*[NumViews];
 				memcpy(override_srvs, ppShaderResourceViews, sizeof(ID3D11ShaderResourceView*) * NumViews);
 			}
-			override_srvs[G->IniParamsReg - StartSlot] = mHackerDevice->mIniResourceView;
+			override_srvs[G->IniParamsReg - StartSlot] = mPenguinDV->mIniResourceView;
 		}
 	}
 
@@ -2719,7 +2719,7 @@ void HackerContext::SetShaderResources(UINT StartSlot, UINT NumViews,
 // The rest of these methods are all the primary code for the tool, Direct3D calls that we override
 // in order to replace or modify shaders.
 
-STDMETHODIMP_(void) HackerContext::VSSetShader(THIS_
+STDMETHODIMP_(void) PenguinDC::VSSetShader(THIS_
 	/* [annotation] */
 	__in_opt ID3D11VertexShader *pVertexShader,
 	/* [annotation] */
@@ -2734,7 +2734,7 @@ STDMETHODIMP_(void) HackerContext::VSSetShader(THIS_
 		 &mCurrentVertexShaderHandle);
 }
 
-STDMETHODIMP_(void) HackerContext::PSSetShaderResources(THIS_
+STDMETHODIMP_(void) PenguinDC::PSSetShaderResources(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2745,7 +2745,7 @@ STDMETHODIMP_(void) HackerContext::PSSetShaderResources(THIS_
 	SetShaderResources<&ID3D11DeviceContext::PSSetShaderResources>(StartSlot, NumViews, ppShaderResourceViews);
 }
 
-STDMETHODIMP_(void) HackerContext::PSSetShader(THIS_
+STDMETHODIMP_(void) PenguinDC::PSSetShader(THIS_
 	/* [annotation] */
 	__in_opt ID3D11PixelShader *pPixelShader,
 	/* [annotation] */
@@ -2761,16 +2761,16 @@ STDMETHODIMP_(void) HackerContext::PSSetShader(THIS_
 
 	if (pPixelShader) {
 		// Set custom depth texture.
-		if (mHackerDevice->mZBufferResourceView)
+		if (mPenguinDV->mZBufferResourceView)
 		{
 			LogDebug("  adding Z buffer to shader resources in slot 126.\n");
 
-			mOrigContext1->PSSetShaderResources(126, 1, &mHackerDevice->mZBufferResourceView);
+			mOrigContext1->PSSetShaderResources(126, 1, &mPenguinDV->mZBufferResourceView);
 		}
 	}
 }
 
-STDMETHODIMP_(void) HackerContext::DrawIndexed(THIS_
+STDMETHODIMP_(void) PenguinDC::DrawIndexed(THIS_
 	/* [annotation] */
 	__in  UINT IndexCount,
 	/* [annotation] */
@@ -2786,7 +2786,7 @@ STDMETHODIMP_(void) HackerContext::DrawIndexed(THIS_
 	AfterDraw(c);
 }
 
-STDMETHODIMP_(void) HackerContext::Draw(THIS_
+STDMETHODIMP_(void) PenguinDC::Draw(THIS_
 	/* [annotation] */
 	__in  UINT VertexCount,
 	/* [annotation] */
@@ -2800,7 +2800,7 @@ STDMETHODIMP_(void) HackerContext::Draw(THIS_
 	AfterDraw(c);
 }
 
-STDMETHODIMP_(void) HackerContext::IASetIndexBuffer(THIS_
+STDMETHODIMP_(void) PenguinDC::IASetIndexBuffer(THIS_
 	/* [annotation] */
 	__in_opt ID3D11Buffer *pIndexBuffer,
 	/* [annotation] */
@@ -2824,7 +2824,7 @@ STDMETHODIMP_(void) HackerContext::IASetIndexBuffer(THIS_
 	}
 }
 
-STDMETHODIMP_(void) HackerContext::DrawIndexedInstanced(THIS_
+STDMETHODIMP_(void) PenguinDC::DrawIndexedInstanced(THIS_
 	/* [annotation] */
 	__in  UINT IndexCountPerInstance,
 	/* [annotation] */
@@ -2845,7 +2845,7 @@ STDMETHODIMP_(void) HackerContext::DrawIndexedInstanced(THIS_
 	AfterDraw(c);
 }
 
-STDMETHODIMP_(void) HackerContext::DrawInstanced(THIS_
+STDMETHODIMP_(void) PenguinDC::DrawInstanced(THIS_
 	/* [annotation] */
 	__in  UINT VertexCountPerInstance,
 	/* [annotation] */
@@ -2863,7 +2863,7 @@ STDMETHODIMP_(void) HackerContext::DrawInstanced(THIS_
 	AfterDraw(c);
 }
 
-STDMETHODIMP_(void) HackerContext::VSSetShaderResources(THIS_
+STDMETHODIMP_(void) PenguinDC::VSSetShaderResources(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -2874,7 +2874,7 @@ STDMETHODIMP_(void) HackerContext::VSSetShaderResources(THIS_
 	SetShaderResources<&ID3D11DeviceContext::VSSetShaderResources>(StartSlot, NumViews, ppShaderResourceViews);
 }
 
-STDMETHODIMP_(void) HackerContext::OMSetRenderTargets(THIS_
+STDMETHODIMP_(void) PenguinDC::OMSetRenderTargets(THIS_
 	/* [annotation] */
 	__in_range(0, D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT)  UINT NumViews,
 	/* [annotation] */
@@ -2913,7 +2913,7 @@ STDMETHODIMP_(void) HackerContext::OMSetRenderTargets(THIS_
 	mOrigContext1->OMSetRenderTargets(NumViews, ppRenderTargetViews, pDepthStencilView);
 }
 
-STDMETHODIMP_(void) HackerContext::OMSetRenderTargetsAndUnorderedAccessViews(THIS_
+STDMETHODIMP_(void) PenguinDC::OMSetRenderTargetsAndUnorderedAccessViews(THIS_
 	/* [annotation] */
 	__in  UINT NumRTVs,
 	/* [annotation] */
@@ -2967,7 +2967,7 @@ STDMETHODIMP_(void) HackerContext::OMSetRenderTargetsAndUnorderedAccessViews(THI
 		UAVStartSlot, NumUAVs, ppUnorderedAccessViews, pUAVInitialCounts);
 }
 
-STDMETHODIMP_(void) HackerContext::DrawAuto(THIS)
+STDMETHODIMP_(void) PenguinDC::DrawAuto(THIS)
 {
 	DrawContext c = DrawContext(DrawCall::DrawAuto, 0, 0, 0, 0, 0, 0, NULL, 0);
 	BeforeDraw(c);
@@ -2977,7 +2977,7 @@ STDMETHODIMP_(void) HackerContext::DrawAuto(THIS)
 	AfterDraw(c);
 }
 
-STDMETHODIMP_(void) HackerContext::DrawIndexedInstancedIndirect(THIS_
+STDMETHODIMP_(void) PenguinDC::DrawIndexedInstancedIndirect(THIS_
 	/* [annotation] */
 	__in  ID3D11Buffer *pBufferForArgs,
 	/* [annotation] */
@@ -2991,7 +2991,7 @@ STDMETHODIMP_(void) HackerContext::DrawIndexedInstancedIndirect(THIS_
 	AfterDraw(c);
 }
 
-STDMETHODIMP_(void) HackerContext::DrawInstancedIndirect(THIS_
+STDMETHODIMP_(void) PenguinDC::DrawInstancedIndirect(THIS_
 	/* [annotation] */
 	__in  ID3D11Buffer *pBufferForArgs,
 	/* [annotation] */
@@ -3005,15 +3005,15 @@ STDMETHODIMP_(void) HackerContext::DrawInstancedIndirect(THIS_
 	AfterDraw(c);
 }
 
-STDMETHODIMP_(void) HackerContext::ClearRenderTargetView(THIS_
+STDMETHODIMP_(void) PenguinDC::ClearRenderTargetView(THIS_
 	/* [annotation] */
 	__in  ID3D11RenderTargetView *pRenderTargetView,
 	/* [annotation] */
 	__in  const FLOAT ColorRGBA[4])
 {
-	RunViewCommandList(mHackerDevice, this, &G->clear_rtv_command_list, pRenderTargetView, false);
+	RunViewCommandList(mPenguinDV, this, &G->clear_rtv_command_list, pRenderTargetView, false);
 	mOrigContext1->ClearRenderTargetView(pRenderTargetView, ColorRGBA);
-	RunViewCommandList(mHackerDevice, this, &G->post_clear_rtv_command_list, pRenderTargetView, true);
+	RunViewCommandList(mPenguinDV, this, &G->post_clear_rtv_command_list, pRenderTargetView, true);
 }
 
 
@@ -3025,7 +3025,7 @@ STDMETHODIMP_(void) HackerContext::ClearRenderTargetView(THIS_
 //  HackerContext <- ID3D11DeviceContext1 <- ID3D11DeviceContext <- ID3D11DeviceChild <- IUnknown
 
 
-void STDMETHODCALLTYPE HackerContext::CopySubresourceRegion1(
+void STDMETHODCALLTYPE PenguinDC::CopySubresourceRegion1(
 	/* [annotation] */
 	_In_  ID3D11Resource *pDstResource,
 	/* [annotation] */
@@ -3048,7 +3048,7 @@ void STDMETHODCALLTYPE HackerContext::CopySubresourceRegion1(
 	mOrigContext1->CopySubresourceRegion1(pDstResource, DstSubresource, DstX, DstY, DstZ, pSrcResource, SrcSubresource, pSrcBox, CopyFlags);
 }
 
-void STDMETHODCALLTYPE HackerContext::UpdateSubresource1(
+void STDMETHODCALLTYPE PenguinDC::UpdateSubresource1(
 	/* [annotation] */
 	_In_  ID3D11Resource *pDstResource,
 	/* [annotation] */
@@ -3070,14 +3070,14 @@ void STDMETHODCALLTYPE HackerContext::UpdateSubresource1(
 }
 
 
-void STDMETHODCALLTYPE HackerContext::DiscardResource(
+void STDMETHODCALLTYPE PenguinDC::DiscardResource(
 	/* [annotation] */
 	_In_  ID3D11Resource *pResource)
 {
 	mOrigContext1->DiscardResource(pResource);
 }
 
-void STDMETHODCALLTYPE HackerContext::DiscardView(
+void STDMETHODCALLTYPE PenguinDC::DiscardView(
 	/* [annotation] */
 	_In_  ID3D11View *pResourceView)
 {
@@ -3085,7 +3085,7 @@ void STDMETHODCALLTYPE HackerContext::DiscardView(
 }
 
 
-void STDMETHODCALLTYPE HackerContext::VSSetConstantBuffers1(
+void STDMETHODCALLTYPE PenguinDC::VSSetConstantBuffers1(
 	/* [annotation] */
 	_In_range_(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -3101,7 +3101,7 @@ void STDMETHODCALLTYPE HackerContext::VSSetConstantBuffers1(
 }
 
 
-void STDMETHODCALLTYPE HackerContext::HSSetConstantBuffers1(
+void STDMETHODCALLTYPE PenguinDC::HSSetConstantBuffers1(
 	/* [annotation] */
 	_In_range_(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -3117,7 +3117,7 @@ void STDMETHODCALLTYPE HackerContext::HSSetConstantBuffers1(
 }
 
 
-void STDMETHODCALLTYPE HackerContext::DSSetConstantBuffers1(
+void STDMETHODCALLTYPE PenguinDC::DSSetConstantBuffers1(
 	/* [annotation] */
 	_In_range_(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -3134,7 +3134,7 @@ void STDMETHODCALLTYPE HackerContext::DSSetConstantBuffers1(
 
 
 
-void STDMETHODCALLTYPE HackerContext::GSSetConstantBuffers1(
+void STDMETHODCALLTYPE PenguinDC::GSSetConstantBuffers1(
 	/* [annotation] */
 	_In_range_(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -3151,7 +3151,7 @@ void STDMETHODCALLTYPE HackerContext::GSSetConstantBuffers1(
 
 
 
-void STDMETHODCALLTYPE HackerContext::PSSetConstantBuffers1(
+void STDMETHODCALLTYPE PenguinDC::PSSetConstantBuffers1(
 	/* [annotation] */
 	_In_range_(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -3168,7 +3168,7 @@ void STDMETHODCALLTYPE HackerContext::PSSetConstantBuffers1(
 
 
 
-void STDMETHODCALLTYPE HackerContext::CSSetConstantBuffers1(
+void STDMETHODCALLTYPE PenguinDC::CSSetConstantBuffers1(
 	/* [annotation] */
 	_In_range_(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -3185,7 +3185,7 @@ void STDMETHODCALLTYPE HackerContext::CSSetConstantBuffers1(
 
 
 
-void STDMETHODCALLTYPE HackerContext::VSGetConstantBuffers1(
+void STDMETHODCALLTYPE PenguinDC::VSGetConstantBuffers1(
 	/* [annotation] */
 	_In_range_(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -3202,7 +3202,7 @@ void STDMETHODCALLTYPE HackerContext::VSGetConstantBuffers1(
 
 
 
-void STDMETHODCALLTYPE HackerContext::HSGetConstantBuffers1(
+void STDMETHODCALLTYPE PenguinDC::HSGetConstantBuffers1(
 	/* [annotation] */
 	_In_range_(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -3219,7 +3219,7 @@ void STDMETHODCALLTYPE HackerContext::HSGetConstantBuffers1(
 
 
 
-void STDMETHODCALLTYPE HackerContext::DSGetConstantBuffers1(
+void STDMETHODCALLTYPE PenguinDC::DSGetConstantBuffers1(
 	/* [annotation] */
 	_In_range_(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -3235,7 +3235,7 @@ void STDMETHODCALLTYPE HackerContext::DSGetConstantBuffers1(
 }
 
 
-void STDMETHODCALLTYPE HackerContext::GSGetConstantBuffers1(
+void STDMETHODCALLTYPE PenguinDC::GSGetConstantBuffers1(
 	/* [annotation] */
 	_In_range_(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -3251,7 +3251,7 @@ void STDMETHODCALLTYPE HackerContext::GSGetConstantBuffers1(
 }
 
 
-void STDMETHODCALLTYPE HackerContext::PSGetConstantBuffers1(
+void STDMETHODCALLTYPE PenguinDC::PSGetConstantBuffers1(
 	/* [annotation] */
 	_In_range_(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -3267,7 +3267,7 @@ void STDMETHODCALLTYPE HackerContext::PSGetConstantBuffers1(
 }
 
 
-void STDMETHODCALLTYPE HackerContext::CSGetConstantBuffers1(
+void STDMETHODCALLTYPE PenguinDC::CSGetConstantBuffers1(
 	/* [annotation] */
 	_In_range_(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT - 1)  UINT StartSlot,
 	/* [annotation] */
@@ -3283,7 +3283,7 @@ void STDMETHODCALLTYPE HackerContext::CSGetConstantBuffers1(
 }
 
 
-void STDMETHODCALLTYPE HackerContext::SwapDeviceContextState(
+void STDMETHODCALLTYPE PenguinDC::SwapDeviceContextState(
 	/* [annotation] */
 	_In_  ID3DDeviceContextState *pState,
 	/* [annotation] */
@@ -3298,7 +3298,7 @@ void STDMETHODCALLTYPE HackerContext::SwapDeviceContextState(
 }
 
 
-void STDMETHODCALLTYPE HackerContext::ClearView(
+void STDMETHODCALLTYPE PenguinDC::ClearView(
 	/* [annotation] */
 	_In_  ID3D11View *pView,
 	/* [annotation] */
@@ -3315,7 +3315,7 @@ void STDMETHODCALLTYPE HackerContext::ClearView(
 }
 
 
-void STDMETHODCALLTYPE HackerContext::DiscardView1(
+void STDMETHODCALLTYPE PenguinDC::DiscardView1(
 	/* [annotation] */
 	_In_  ID3D11View *pResourceView,
 	/* [annotation] */

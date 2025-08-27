@@ -8,10 +8,10 @@
 
 // FIXME: Move any dependencies from these headers into common:
 #if MIGOTO_DX == 9
-#include "DirectX9\Overlay.h"
+#include "DirectX9\\Overlay.h"
 #elif MIGOTO_DX == 11
-#include "DirectX11\HackerDevice.h"
-#include "DirectX11\HackerContext.h"
+#include "DirectX11\\PenguinDV.h"
+#include "DirectX11\\PenguinDC.h"
 #endif // MIGOTO_DX
 
 // Sometimes game directories get funny permissions that cause us problems. I
@@ -173,10 +173,10 @@ std::string NameFromIID(IID id)
 	// to catch potential cases where multiple versions of 3DMigoto are
 	// coexisting and the devices get mixed up
 #if MIGOTO_DX == 11
-	if (IID_HackerDevice == id)
-		return "HackerDevice";
-	if (IID_HackerContext == id)
-		return "HackerContext";
+	if (IID_PenguinDV == id)
+		return "PenguinDV";
+	if (IID_PenguinDV == id)
+		return "PenguinDC";
 #elif MIGOTO_DX == 9
 	// FIXME: DX9 GUIDs are not using the correct macros, and need verification
 	// that they haven't been copy + pasted

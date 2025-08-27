@@ -1,8 +1,8 @@
-#include "HackerDevice.h"
+#include "PenguinDV.h"
 
-void FlagConfigReload(HackerDevice *device, void *private_data);
+void FlagConfigReload(PenguinDV *device, void *private_data);
 void LoadConfigFile();
-void ReloadConfig(HackerDevice *device);
+void ReloadConfig(PenguinDV *device);
 void LoadProfileManagerConfig(const wchar_t *config_dir);
 void SavePersistentSettings();
 

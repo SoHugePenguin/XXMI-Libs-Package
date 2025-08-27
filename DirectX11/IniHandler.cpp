@@ -10,6 +10,7 @@
 #include <pcre2.h>
 #include <codecvt>
 
+#include "D3D11Wrapper.h"
 #include "log.h"
 #include "Globals.h"
 #include "Override.h"
@@ -970,8 +971,8 @@ int GetIniStringAndLog(const wchar_t *section, const wchar_t *key,
 {
 	int rc = GetIniString(section, key, def, ret, size);
 
-	if (rc)
-		LogInfo("  %S=%S\n", key, ret);
+//	if (rc)
+//		LogToWindow("[GetIniStringAndLog]  %S=%S\n", key, ret);
 
 	return rc;
 }
@@ -4038,7 +4039,7 @@ static void ParseExplicitCommandListSections()
 	}
 }
 
-void FlagConfigReload(HackerDevice *device, void *private_data)
+void FlagConfigReload(PenguinDV *device, void *private_data)
 {
 	// When we reload the configuration, we are going to clear the existing
 	// key bindings and reassign them. Naturally this is not a safe thing
@@ -4051,7 +4052,7 @@ void FlagConfigReload(HackerDevice *device, void *private_data)
 	G->gWipeUserConfig = !!private_data;
 }
 
-static void ToggleFullScreen(HackerDevice *device, void *private_data)
+static void ToggleFullScreen(PenguinDV *device, void *private_data)
 {
 	// SCREEN_FULLSCREEN has several options now, so to preserve the
 	// current setting when toggled off we negate it:
@@ -4059,19 +4060,19 @@ static void ToggleFullScreen(HackerDevice *device, void *private_data)
 	LogInfo("> full screen forcing toggled to %d (will not take effect until next mode switch)\n", G->SCREEN_FULLSCREEN);
 }
 
-static void ForceFullScreen(HackerDevice *device, void *private_data)
+static void ForceFullScreen(PenguinDV *device, void *private_data)
 {
-	HackerSwapChain *mHackerSwapChain = device->GetHackerSwapChain();
+	PenguinSC *mPenguinSC = device->GetPenguinSC();
 	IDXGISwapChain1 *swap_chain;
 
 	LogInfo("> Switching to exclusive full screen mode\n");
 
-	if (!mHackerSwapChain) {
+	if (!mPenguinSC) {
 		LogOverlay(LOG_DIRE, "force_full_screen_on_key: Unable to find swap chain\n");
 		return;
 	}
 
-	swap_chain = mHackerSwapChain->GetOrigSwapChain1();
+	swap_chain = mPenguinSC->GetOrigSwapChain1();
 
 	swap_chain->SetFullscreenState(TRUE, NULL);
 	swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
@@ -4113,6 +4114,7 @@ void LoadConfigFile()
 	wcscpy(logFilename, iniFile);
 	wcscat(iniFile, INI_FILENAME);
 	wcscat(logFilename, L"d3d11_log.txt");
+	LogToWindow("logFilename: %s", logFilename);
 	warn_of_conflicting_d3dx(iniFile);
 
 	// Log all settings that are _enabled_, in order, 
@@ -4203,6 +4205,7 @@ void LoadConfigFile()
 	// [System]
 	LogInfo("[System]\n");
 	GetIniStringAndLog(L"System", L"proxy_d3d11", 0, G->CHAIN_DLL_PATH, MAX_PATH);	
+	GetIniStringAndLog(L"Loader", L"proxy_d3d11", 0, G->CHAIN_DLL_PATH, MAX_PATH);
 	G->load_library_redirect = GetIniInt(L"System", L"load_library_redirect", 2, NULL);
 
 	if (GetIniStringAndLog(L"System", L"hook", 0, setting, MAX_PATH))
@@ -4599,11 +4602,11 @@ static void MarkAllShadersDeferredUnprocessed()
 	// and just update the ShaderOverrides & filter_index
 }
 
-void ReloadConfig(HackerDevice *device)
+void ReloadConfig(PenguinDV *device)
 {
 	auto start = std::chrono::high_resolution_clock::now();
 
-	HackerContext *mHackerContext = device->GetHackerContext();
+	PenguinDC *mPenguinDC = device->GetPenguinDC();
 
 	if (G->gWipeUserConfig)
 		WipeUserConfig();
@@ -4656,14 +4659,14 @@ void ReloadConfig(HackerDevice *device)
 	// Execute the [Constants] command list in the immediate context to
 	// initialise iniParams and perform any other custom initialisation the
 	// user may have defined:
-	if (mHackerContext) {
+	if (mPenguinDC) {
 		if (G->iniParams.size() != G->iniParamsReserved) {
 			LogInfo("  Resizing IniParams from %Ii to %d\n", G->iniParams.size(), G->iniParamsReserved);
 			device->CreateIniParamResources();
-			mHackerContext->Bind3DMigotoResources();
+			mPenguinDC->Bind3DMigotoResources();
 		}
 
-		mHackerContext->InitIniParams();
+		mPenguinDC->InitIniParams();
 	} else {
 		// We used to use GetImmediateContext here, which would ensure
 		// that the HackerContext had been created if it didn't exist
@@ -4672,7 +4675,7 @@ void ReloadConfig(HackerDevice *device)
 		// did the [Present] command list would also be broken), so
 		// rather than continue to use it, issue a warning if the
 		// HackerContext doesn't exist.
-		LogOverlay(LOG_DIRE, "BUG: No HackerContext at ReloadConfig - please report this\n");
+		LogOverlay(LOG_DIRE, "BUG: No PenguinDC at ReloadConfig - please report this\n");
 	}
 
 	setlocale(LC_CTYPE, G->gDefaultLocale.c_str());

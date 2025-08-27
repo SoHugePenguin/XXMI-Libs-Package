@@ -1,17 +1,17 @@
-#pragma once
+﻿#pragma once
 
 #include <dxgi1_2.h>
 
-#include "HackerDevice.h"
-#include "HackerContext.h"
+#include "PenguinDV.h"
+#include "PenguinDC.h"
 #include "Overlay.h"
 
 
 // Forward references required because of circular references from the
 // other 'Hacker' objects.
 
-class HackerDevice;
-class HackerContext;
+class PenguinDV;
+class PenguinDC;
 class Overlay;
 
 
@@ -21,15 +21,15 @@ void InstallSetWindowPosHook();
 // Hierarchy:
 //	HackerSwapChain -> IDXGISwapChain1 -> IDXGISwapChain -> IDXGIDeviceSubObject -> IDXGIObject -> IUnknown
 
-class HackerSwapChain : public IDXGISwapChain1
+class PenguinSC : public IDXGISwapChain1
 {
 protected:
 	IDXGISwapChain1 *mOrigSwapChain1;
-	HackerDevice *mHackerDevice;
-	HackerContext *mHackerContext;
+	PenguinDV *mPenguinDV;
+	PenguinDC *mPenguinDC;
 
 public:
-	HackerSwapChain(IDXGISwapChain1 *pSwapChain, HackerDevice *pDevice, HackerContext *pContext);
+	PenguinSC(IDXGISwapChain1 *pSwapChain, PenguinDV *pDevice, PenguinDC *pContext);
 	
 	IDXGISwapChain1* GetOrigSwapChain1();
 	void RunFrameActions();
@@ -190,7 +190,7 @@ public:
 
 // -----------------------------------------------------------------------------
 
-class HackerUpscalingSwapChain : public HackerSwapChain
+class HackerUpscalingSwapChain : public PenguinSC
 {
 private:
 	IDXGISwapChain1 *mFakeSwapChain1;
@@ -200,7 +200,7 @@ private:
 	UINT mHeight;
 
 public:
-	HackerUpscalingSwapChain::HackerUpscalingSwapChain(IDXGISwapChain1 *pSwapChain, HackerDevice *pHackerDevice, HackerContext *pHackerContext,
+	HackerUpscalingSwapChain::HackerUpscalingSwapChain(IDXGISwapChain1 *pSwapChain, PenguinDV *pPenguinDV, PenguinDC *pPenguinDC,
 		DXGI_SWAP_CHAIN_DESC* pFakeSwapChainDesc, UINT newWidth, UINT newHeight);
 	~HackerUpscalingSwapChain();
 

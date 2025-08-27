@@ -8,8 +8,8 @@
 #include <WICTextureLoader.h>
 #include <algorithm>
 #include <sstream>
-#include "HackerDevice.h"
-#include "HackerContext.h"
+#include "PenguinDV.h"
+#include "PenguinDC.h"
 #include "Override.h"
 #include "D3D11Wrapper.h"
 #include "IniHandler.h"
@@ -35,7 +35,7 @@ std::vector<std::shared_ptr<CommandList>> dynamically_allocated_command_lists;
 // macro instead of a function for this to concatenate static strings:
 #define COMMAND_LIST_LOG(state, fmt, ...) \
 	do { \
-		(state)->mHackerContext->FrameAnalysisLog("3DMigoto%*s " fmt, state->recursion + state->extra_indent, "", __VA_ARGS__); \
+		(state)->mPenguinDC->FrameAnalysisLog("3DMigoto%*s " fmt, state->recursion + state->extra_indent, "", __VA_ARGS__); \
 	} while (0)
 
 struct command_list_profiling_state {
@@ -159,21 +159,21 @@ static void CommandListFlushState(CommandListState *state)
 	D3D11_MAPPED_SUBRESOURCE mappedResource;
 	HRESULT hr;
 
-	if (state->update_params && state->mHackerDevice->mIniTexture) {
-		hr = state->mOrigContext1->Map(state->mHackerDevice->mIniTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+	if (state->update_params && state->mPenguinDV->mIniTexture) {
+		hr = state->mOrigContext1->Map(state->mPenguinDV->mIniTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
 		if (FAILED(hr)) {
 			LogInfo("CommandListFlushState: Map failed\n");
 			return;
 		}
 		memcpy(mappedResource.pData, G->iniParams.data(), sizeof(DirectX::XMFLOAT4) * G->iniParams.size());
-		state->mOrigContext1->Unmap(state->mHackerDevice->mIniTexture, 0);
+		state->mOrigContext1->Unmap(state->mPenguinDV->mIniTexture, 0);
 		state->update_params = false;
 		Profiling::iniparams_updates++;
 	}
 }
 
-static void RunCommandListComplete(HackerDevice *mHackerDevice,
-		HackerContext *mHackerContext,
+static void RunCommandListComplete(PenguinDV *mPenguinDV,
+		PenguinDC *mPenguinDC,
 		CommandList *command_list,
 		DrawCallInfo *call_info,
 		ID3D11Resource **resource,
@@ -181,10 +181,10 @@ static void RunCommandListComplete(HackerDevice *mHackerDevice,
 		bool post)
 {
 	CommandListState state;
-	state.mHackerDevice = mHackerDevice;
-	state.mHackerContext = mHackerContext;
-	state.mOrigDevice1 = mHackerDevice->GetPassThroughOrigDevice1();
-	state.mOrigContext1 = mHackerContext->GetPassThroughOrigContext1();
+	state.mPenguinDV = mPenguinDV;
+	state.mPenguinDC = mPenguinDC;
+	state.mOrigDevice1 = mPenguinDV->GetPassThroughOrigDevice1();
+	state.mOrigContext1 = mPenguinDC->GetPassThroughOrigContext1();
 
 	state.call_info = call_info;
 	state.resource = resource;
@@ -195,8 +195,8 @@ static void RunCommandListComplete(HackerDevice *mHackerDevice,
 	CommandListFlushState(&state);
 }
 
-void RunCommandList(HackerDevice *mHackerDevice,
-		HackerContext *mHackerContext,
+void RunCommandList(PenguinDV *mPenguinDV,
+		PenguinDC *mPenguinDC,
 		CommandList *command_list,
 		DrawCallInfo *call_info,
 		bool post)
@@ -205,22 +205,22 @@ void RunCommandList(HackerDevice *mHackerDevice,
 	if (call_info)
 		resource = (ID3D11Resource**)call_info->indirect_buffer;
 
-	RunCommandListComplete(mHackerDevice, mHackerContext, command_list,
+	RunCommandListComplete(mPenguinDV, mPenguinDC, command_list,
 		call_info, resource, NULL, post);
 }
 
-void RunResourceCommandList(HackerDevice *mHackerDevice,
-		HackerContext *mHackerContext,
+void RunResourceCommandList(PenguinDV *mPenguinDV,
+		PenguinDC *mPenguinDC,
 		CommandList *command_list,
 		ID3D11Resource **resource,
 		bool post)
 {
-	RunCommandListComplete(mHackerDevice, mHackerContext, command_list,
+	RunCommandListComplete(mPenguinDV, mPenguinDC, command_list,
 			NULL, resource, NULL, post);
 }
 
-void RunViewCommandList(HackerDevice *mHackerDevice,
-		HackerContext *mHackerContext,
+void RunViewCommandList(PenguinDV *mPenguinDV,
+		PenguinDC *mPenguinDC,
 		CommandList *command_list,
 		ID3D11View *view,
 		bool post)
@@ -230,14 +230,14 @@ void RunViewCommandList(HackerDevice *mHackerDevice,
 	if (view)
 		view->GetResource(&res);
 
-	RunCommandListComplete(mHackerDevice, mHackerContext, command_list,
+	RunCommandListComplete(mPenguinDV, mPenguinDC, command_list,
 			NULL, &res, view, post);
 
 	if (res)
 		res->Release();
 }
 
-void optimise_command_lists(HackerDevice *device)
+void optimise_command_lists(PenguinDV *device)
 {
 	bool making_progress;
 	bool ignore_cto_pre, ignore_cto_post;
@@ -1216,7 +1216,7 @@ void DrawCommand::eval_args(int nargs, INT result[5], CommandListState *state)
 
 void DrawCommand::run(CommandListState *state)
 {
-	HackerContext *mHackerContext = state->mHackerContext;
+	PenguinDC *mPenguinDC = state->mPenguinDC;
 	ID3D11DeviceContext *mOrigContext1 = state->mOrigContext1;
 	DrawCallInfo *info = state->call_info;
 	UINT auto_count = 0;
@@ -1367,7 +1367,7 @@ void DrawCommand::run(CommandListState *state)
 
 void StoreCommand::run(CommandListState* state)
 {
-	HackerContext* mHackerContext = state->mHackerContext;
+	PenguinDC* mPenguinDC = state->mPenguinDC;
 	ID3D11DeviceContext* mOrigContext1 = state->mOrigContext1;
 
 	D3D11_BUFFER_DESC desc;
@@ -1390,7 +1390,7 @@ void StoreCommand::run(CommandListState* state)
 	desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 
 	LockResourceCreationMode();
-	hr = state->mHackerDevice->GetPassThroughOrigDevice1()->CreateBuffer(&desc, NULL, &staging);
+	hr = state->mPenguinDV->GetPassThroughOrigDevice1()->CreateBuffer(&desc, NULL, &staging);
 	UnlockResourceCreationMode();
 
 	if (!FAILED(hr)) {
@@ -1443,7 +1443,7 @@ void FrameAnalysisChangeOptionsCommand::run(CommandListState *state)
 {
 	COMMAND_LIST_LOG(state, "%S\n", ini_line.c_str());
 
-	state->mHackerContext->FrameAnalysisTrigger(analyse_options);
+	state->mPenguinDC->FrameAnalysisTrigger(analyse_options);
 }
 
 bool FrameAnalysisChangeOptionsCommand::noop(bool post, bool ignore_cto_pre, bool ignore_cto_post)
@@ -1604,7 +1604,7 @@ void FrameAnalysisDumpCommand::run(CommandListState *state)
 	// resources:
 	FillInMissingInfo(target.type, resource, view, &stride, &offset, &buf_size, &format);
 
-	state->mHackerContext->FrameAnalysisDump(resource, analyse_options, target_name.c_str(), format, stride, offset);
+	state->mPenguinDC->FrameAnalysisDump(resource, analyse_options, target_name.c_str(), format, stride, offset);
 
 	if (resource)
 		resource->Release();
@@ -1639,9 +1639,9 @@ void Draw3DMigotoOverlayCommand::run(CommandListState *state)
 {
 	COMMAND_LIST_LOG(state, "[%S] special = draw_3dmigoto_overlay\n", ini_section.c_str());
 
-	HackerSwapChain *mHackerSwapChain = state->mHackerDevice->GetHackerSwapChain();
-	if (mHackerSwapChain->mOverlay) {
-		mHackerSwapChain->mOverlay->DrawOverlay();
+    PenguinSC *mPenguinSC = state->mPenguinDV->GetPenguinSC();
+	if (mPenguinSC->mOverlay) {
+		mPenguinSC->mOverlay->DrawOverlay();
 		G->suppress_overlay = true;
 	}
 }
@@ -2450,27 +2450,27 @@ float CommandListOperand::process_texture_filter(CommandListState *state)
 
 float CommandListOperand::process_shader_filter(CommandListState *state)
 {
-	HackerContext *mHackerContext = state->mHackerContext;
+	PenguinDC *mPenguinDC = state->mPenguinDC;
 	ID3D11DeviceChild *shader = NULL;
 
 	switch (shader_filter_target) {
 		case L'v':
-			shader = mHackerContext->mCurrentVertexShaderHandle;
+			shader = mPenguinDC->mCurrentVertexShaderHandle;
 			break;
 		case L'h':
-			shader = mHackerContext->mCurrentHullShaderHandle;
+			shader = mPenguinDC->mCurrentHullShaderHandle;
 			break;
 		case L'd':
-			shader = mHackerContext->mCurrentDomainShaderHandle;
+			shader = mPenguinDC->mCurrentDomainShaderHandle;
 			break;
 		case L'g':
-			shader = mHackerContext->mCurrentGeometryShaderHandle;
+			shader = mPenguinDC->mCurrentGeometryShaderHandle;
 			break;
 		case L'p':
-			shader = mHackerContext->mCurrentPixelShaderHandle;
+			shader = mPenguinDC->mCurrentPixelShaderHandle;
 			break;
 		case L'c':
-			shader = mHackerContext->mCurrentComputeShaderHandle;
+			shader = mPenguinDC->mCurrentComputeShaderHandle;
 			break;
 		default:
 			LogOverlay(LOG_DIRE, "BUG: Unknown shader filter type: \"%C\"\n", shader_filter_target);
@@ -2505,8 +2505,8 @@ void CommandList::clear()
 }
 
 CommandListState::CommandListState() :
-	mHackerDevice(NULL),
-	mHackerContext(NULL),
+	mPenguinDV(NULL),
+	mPenguinDC(NULL),
 	mOrigDevice1(NULL),
 	mOrigContext1(NULL),
 	rt_width(-1),
@@ -2877,13 +2877,13 @@ static float HeuristicGetWindowHeight(CommandListState* state)
 	return (float)G->gFallbackScreenHeight;
 }
 
-float CommandListOperand::evaluate(CommandListState *state, HackerDevice *device)
+float CommandListOperand::evaluate(CommandListState *state, PenguinDV *device)
 {
 	float ftemp;
 	float fret;
 
 	if (state)
-		device = state->mHackerDevice;
+		device = state->mPenguinDV;
 	else if (!device) {
 		LogOverlay(LOG_DIRE, "BUG: CommandListOperand::evaluate called with neither state nor device\n");
 		return 0;
@@ -3055,7 +3055,7 @@ float CommandListOperand::evaluate(CommandListState *state, HackerDevice *device
 	return 0;
 }
 
-bool CommandListOperand::static_evaluate(float *ret, HackerDevice *device)
+bool CommandListOperand::static_evaluate(float *ret, PenguinDV *device)
 {
 	switch (type) {
 		case ParamOverrideType::VALUE:
@@ -3082,7 +3082,7 @@ bool CommandListOperand::static_evaluate(float *ret, HackerDevice *device)
 	return false;
 }
 
-bool CommandListOperand::optimise(HackerDevice *device, std::shared_ptr<CommandListEvaluatable> *replacement)
+bool CommandListOperand::optimise(PenguinDV *device, std::shared_ptr<CommandListEvaluatable> *replacement)
 {
 	if (type == ParamOverrideType::VALUE)
 		return false;
@@ -3599,17 +3599,17 @@ bool CommandListExpression::parse(const wstring *expression, const wstring *ini_
 	}
 }
 
-float CommandListExpression::evaluate(CommandListState *state, HackerDevice *device)
+float CommandListExpression::evaluate(CommandListState *state, PenguinDV *device)
 {
 	return evaluatable->evaluate(state, device);
 }
 
-bool CommandListExpression::static_evaluate(float *ret, HackerDevice *device)
+bool CommandListExpression::static_evaluate(float *ret, PenguinDV *device)
 {
 	return evaluatable->static_evaluate(ret, device);
 }
 
-bool CommandListExpression::optimise(HackerDevice *device)
+bool CommandListExpression::optimise(PenguinDV *device)
 {
 	std::shared_ptr<CommandListEvaluatable> replacement;
 	bool ret;
@@ -3729,14 +3729,14 @@ CommandListSyntaxTree::Walk CommandListSyntaxTree::walk()
 	return ret;
 }
 
-float CommandListOperator::evaluate(CommandListState *state, HackerDevice *device)
+float CommandListOperator::evaluate(CommandListState *state, PenguinDV *device)
 {
 	if (lhs) // Binary operator
 		return evaluate(lhs->evaluate(state, device), rhs->evaluate(state, device));
 	return evaluate(std::numeric_limits<float>::quiet_NaN(), rhs->evaluate(state, device));
 }
 
-bool CommandListOperator::static_evaluate(float *ret, HackerDevice *device)
+bool CommandListOperator::static_evaluate(float *ret, PenguinDV *device)
 {
 	float lhs_static = std::numeric_limits<float>::quiet_NaN(), rhs_static;
 	bool is_static;
@@ -3754,7 +3754,7 @@ bool CommandListOperator::static_evaluate(float *ret, HackerDevice *device)
 	return false;
 }
 
-bool CommandListOperator::optimise(HackerDevice *device, std::shared_ptr<CommandListEvaluatable> *replacement)
+bool CommandListOperator::optimise(PenguinDV *device, std::shared_ptr<CommandListEvaluatable> *replacement)
 {
 	std::shared_ptr<CommandListEvaluatable> lhs_replacement;
 	std::shared_ptr<CommandListEvaluatable> rhs_replacement;
@@ -3834,7 +3834,7 @@ void VariableAssignment::run(CommandListState *state)
 		G->user_config_dirty |= (var->fval != orig);
 }
 
-bool AssignmentCommand::optimise(HackerDevice *device)
+bool AssignmentCommand::optimise(PenguinDV *device)
 {
 	return expression.optimise(device);
 }
@@ -5438,7 +5438,7 @@ void IfCommand::run(CommandListState *state)
 	}
 }
 
-bool IfCommand::optimise(HackerDevice *device)
+bool IfCommand::optimise(PenguinDV *device)
 {
 	return expression.optimise(device);
 }
@@ -5489,7 +5489,7 @@ ID3D11Resource *ResourceCopyTarget::GetResource(
 		UINT *buf_size,      // Used when creating a view of the buffer
 		ResourceCopyTarget *dst) // Used to get bind flags when substantiating a custom resource
 {
-	HackerDevice *mHackerDevice = state->mHackerDevice;
+	PenguinDV *mPenguinDV = state->mPenguinDV;
 	ID3D11Device *mOrigDevice1 = state->mOrigDevice1;
 	ID3D11DeviceContext *mOrigContext1 = state->mOrigContext1;
 	ID3D11Resource *res = NULL;
@@ -5699,12 +5699,12 @@ ID3D11Resource *ResourceCopyTarget::GetResource(
 		return custom_resource->resource;
 
 	case ResourceCopyTargetType::INI_PARAMS:
-		if (mHackerDevice->mIniResourceView)
-			mHackerDevice->mIniResourceView->AddRef();
-		*view = mHackerDevice->mIniResourceView;
-		if (mHackerDevice->mIniTexture)
-			mHackerDevice->mIniTexture->AddRef();
-		return mHackerDevice->mIniTexture;
+		if (mPenguinDV->mIniResourceView)
+			mPenguinDV->mIniResourceView->AddRef();
+		*view = mPenguinDV->mIniResourceView;
+		if (mPenguinDV->mIniTexture)
+			mPenguinDV->mIniTexture->AddRef();
+		return mPenguinDV->mIniTexture;
 
 	case ResourceCopyTargetType::CURSOR_MASK:
 		UpdateCursorResources(state);
@@ -5742,12 +5742,12 @@ ID3D11Resource *ResourceCopyTarget::GetResource(
 
 	case ResourceCopyTargetType::SWAP_CHAIN:
 		{
-			HackerSwapChain *mHackerSwapChain = mHackerDevice->GetHackerSwapChain();
-			if (mHackerSwapChain) {
+			PenguinSC *mPenguinSC = mPenguinDV->GetPenguinSC();
+			if (mPenguinSC) {
 				if (G->bb_is_upscaling_bb)
-					mHackerSwapChain->GetBuffer(0, __uuidof(ID3D11Resource), (void**)&res);
+					mPenguinSC->GetBuffer(0, __uuidof(ID3D11Resource), (void**)&res);
 				else
-					mHackerSwapChain->GetOrigSwapChain1()->GetBuffer(0, __uuidof(ID3D11Resource), (void**)&res);
+					mPenguinSC->GetOrigSwapChain1()->GetBuffer(0, __uuidof(ID3D11Resource), (void**)&res);
 			} else
 				COMMAND_LIST_LOG(state, "  Unable to get access to swap chain\n");
 		}
@@ -5755,9 +5755,9 @@ ID3D11Resource *ResourceCopyTarget::GetResource(
 
 	case ResourceCopyTargetType::REAL_SWAP_CHAIN:
 		{
-			HackerSwapChain *mHackerSwapChain = mHackerDevice->GetHackerSwapChain();
-			if (mHackerSwapChain)
-				mHackerSwapChain->GetOrigSwapChain1()->GetBuffer(0, __uuidof(ID3D11Resource), (void**)&res);
+			PenguinSC *mPenguinSC = mPenguinDV->GetPenguinSC();
+			if (mPenguinSC)
+				mPenguinSC->GetOrigSwapChain1()->GetBuffer(0, __uuidof(ID3D11Resource), (void**)&res);
 			else
 				COMMAND_LIST_LOG(state, "  Unable to get access to real swap chain\n");
 		}
@@ -5765,9 +5765,9 @@ ID3D11Resource *ResourceCopyTarget::GetResource(
 
 	case ResourceCopyTargetType::FAKE_SWAP_CHAIN:
 		{
-			HackerSwapChain *mHackerSwapChain = mHackerDevice->GetHackerSwapChain();
-			if (mHackerSwapChain)
-				mHackerSwapChain->GetBuffer(0, __uuidof(ID3D11Resource), (void**)&res);
+			PenguinSC *mPenguinSC = mPenguinDV->GetPenguinSC();
+			if (mPenguinSC)
+				mPenguinSC->GetBuffer(0, __uuidof(ID3D11Resource), (void**)&res);
 			else
 				COMMAND_LIST_LOG(state, "  Unable to get access to fake swap chain\n");
 		}
@@ -7384,8 +7384,8 @@ static ResourceCopyTargetType EquivTarget(ResourceCopyTargetType type)
 
 void ResourceCopyOperation::run(CommandListState *state)
 {
-	HackerDevice *mHackerDevice = state->mHackerDevice;
-	HackerContext *mHackerContext = state->mHackerContext;
+	PenguinDV *mPenguinDV = state->mPenguinDV;
+	PenguinDC *mPenguinDC = state->mPenguinDC;
 	ID3D11DeviceContext *mOrigContext1 = state->mOrigContext1;
 	ID3D11Resource *src_resource = NULL;
 	ID3D11Resource *dst_resource = NULL;

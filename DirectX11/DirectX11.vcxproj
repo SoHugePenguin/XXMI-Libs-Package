@@ -50,8 +50,6 @@
     <ClCompile Include="D3D11Wrapper.cpp" />
     <ClCompile Include="DLLMainHook.cpp" />
     <ClCompile Include="FrameAnalysis.cpp" />
-    <ClCompile Include="HackerContext.cpp" />
-    <ClCompile Include="HackerDevice.cpp" />
     <ClCompile Include="HackerDXGI.cpp" />
     <ClCompile Include="HookAddresses.c" />
     <ClCompile Include="HookedContext.cpp" />
@@ -63,11 +61,16 @@
     <ClCompile Include="lock.cpp" />
     <ClCompile Include="Overlay.cpp" />
     <ClCompile Include="Override.cpp" />
+    <ClCompile Include="PenguinDC.cpp" />
+    <ClCompile Include="PenguinDV.cpp" />
     <ClCompile Include="profiling.cpp" />
     <ClCompile Include="ResourceHash.cpp" />
     <ClCompile Include="ShaderRegex.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\arial.spritefont" />
+    <None Include="..\courierbold.spritefont" />
+    <None Include="..\couriersmall.spritefont" />
     <None Include="d3d11Wrapper.def" />
   </ItemGroup>
   <ItemGroup>
@@ -82,8 +85,6 @@
     <ClInclude Include="DLLMainHook.h" />
     <ClInclude Include="FrameAnalysis.h" />
     <ClInclude Include="Globals.h" />
-    <ClInclude Include="HackerContext.h" />
-    <ClInclude Include="HackerDevice.h" />
     <ClInclude Include="HackerDXGI.h" />
     <ClInclude Include="HookedContext.h" />
     <ClInclude Include="HookedDevice.h" />
@@ -95,7 +96,10 @@
     <ClInclude Include="Overlay.h" />
     <ClInclude Include="CommandList.h" />
     <ClInclude Include="Override.h" />
+    <ClInclude Include="PenguinDC.h" />
+    <ClInclude Include="PenguinDV.h" />
     <ClInclude Include="profiling.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="ResourceHash.h" />
     <ClInclude Include="ShaderRegex.h" />
     <ClInclude Include="..\vkeys.h" />
@@ -201,7 +205,7 @@
     <TargetName>d3d11</TargetName>
     <IncludePath>$(SolutionDir)crc32c-hw-1.0.5\include;$(SolutionDir)BinaryDecompiler;$(SolutionDir)BinaryDecompiler\include;$(WindowsSDK_IncludePath);$(VC_IncludePath)</IncludePath>
     <LibraryPath>$(WindowsSDK_LibraryPath_x64);$(VC_LibraryPath_x64)</LibraryPath>
-    <OutDir>$(SolutionDir)x64\$(Configuration)\</OutDir>
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)x64\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Zip Release|Win32'">

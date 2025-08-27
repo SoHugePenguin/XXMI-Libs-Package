@@ -57,7 +57,7 @@ static void SwitchToXinpuGetStateEx()
 // VS2013 BUG WORKAROUND: Make sure this class has a unique type name!
 class KeyParseError: public exception {} keyParseError;
 
-void InputListener::UpEvent(HackerDevice *device)
+void InputListener::UpEvent(PenguinDV *device)
 {
 }
 
@@ -70,13 +70,13 @@ InputCallbacks::InputCallbacks(InputCallback down_cb, InputCallback up_cb,
 	private_data(private_data)
 {}
 
-void InputCallbacks::DownEvent(HackerDevice *device)
+void InputCallbacks::DownEvent(PenguinDV *device)
 {
 	if (down_cb)
 		return down_cb(device, private_data);
 }
 
-void InputCallbacks::UpEvent(HackerDevice *device)
+void InputCallbacks::UpEvent(PenguinDV *device)
 {
 	if (up_cb)
 		return up_cb(device, private_data);
@@ -96,7 +96,7 @@ InputAction::~InputAction()
 	delete button;
 }
 
-bool InputAction::Dispatch(HackerDevice *device)
+bool InputAction::Dispatch(PenguinDV *device)
 {
 	bool state = button->CheckState();
 
@@ -160,7 +160,7 @@ RepeatingInputAction::RepeatingInputAction(InputButton *button, shared_ptr<Input
 	InputAction(button, listener)
 {}
 
-bool RepeatingInputAction::Dispatch(HackerDevice *device)
+bool RepeatingInputAction::Dispatch(PenguinDV *device)
 {
 	int ms = (1000 / repeatRate);
 	if (GetTickCount64() < (lastTick + ms))
@@ -193,7 +193,7 @@ DelayedInputAction::DelayedInputAction(InputButton *button, shared_ptr<InputList
 	InputAction(button, listener)
 {}
 
-bool DelayedInputAction::Dispatch(HackerDevice *device)
+bool DelayedInputAction::Dispatch(PenguinDV *device)
 {
 	ULONGLONG now = GetTickCount64();
 	bool state = button->CheckState();
@@ -541,7 +541,7 @@ static bool CheckForegroundWindow()
 	return (pid == GetCurrentProcessId());
 }
 
-bool DispatchInputEvents(HackerDevice *device)
+bool DispatchInputEvents(PenguinDV *device)
 {
 	std::vector<class InputAction *>::iterator i;
 	class InputAction *action;

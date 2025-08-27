@@ -20,15 +20,15 @@
 
 // Forward declarations instead of #includes to resolve circular includes (we
 // include Hacker*.h, which includes Globals.h, which includes us):
-class HackerDevice;
-class HackerContext;
+class PenguinDV;
+class PenguinDC;
 enum class FrameAnalysisOptions;
 class ResourceCopyTarget;
 
 class CommandListState {
 public:
-	HackerDevice *mHackerDevice;
-	HackerContext *mHackerContext;
+	PenguinDV *mPenguinDV;
+	PenguinDC *mPenguinDC;
 	ID3D11Device1 *mOrigDevice1;
 	ID3D11DeviceContext1 *mOrigContext1;
 
@@ -87,7 +87,7 @@ public:
 	virtual ~CommandListCommand() {};
 
 	virtual void run(CommandListState*) = 0;
-	virtual bool optimise(HackerDevice *device) { return false; }
+	virtual bool optimise(PenguinDV *device) { return false; }
 	virtual bool noop(bool post, bool ignore_cto_pre, bool ignore_cto_post) { return false; }
 };
 
@@ -703,9 +703,9 @@ class CommandListEvaluatable {
 public:
 	virtual ~CommandListEvaluatable() {}; // Because C++
 
-	virtual float evaluate(CommandListState *state, HackerDevice *device=NULL) = 0;
-	virtual bool static_evaluate(float *ret, HackerDevice *device=NULL) = 0;
-	virtual bool optimise(HackerDevice *device, std::shared_ptr<CommandListEvaluatable> *replacement) = 0;
+	virtual float evaluate(CommandListState *state, PenguinDV *device=NULL) = 0;
+	virtual bool static_evaluate(float *ret, PenguinDV *device=NULL) = 0;
+	virtual bool optimise(PenguinDV *device, std::shared_ptr<CommandListEvaluatable> *replacement) = 0;
 };
 
 // Indicates that this node can be used as an operand, checked when
@@ -784,9 +784,9 @@ public:
 	{}
 
 	std::shared_ptr<CommandListEvaluatable> finalise() override;
-	float evaluate(CommandListState *state, HackerDevice *device=NULL) override;
-	bool static_evaluate(float *ret, HackerDevice *device=NULL) override;
-	bool optimise(HackerDevice *device, std::shared_ptr<CommandListEvaluatable> *replacement) override;
+	float evaluate(CommandListState *state, PenguinDV *device=NULL) override;
+	bool static_evaluate(float *ret, PenguinDV *device=NULL) override;
+	bool optimise(PenguinDV *device, std::shared_ptr<CommandListEvaluatable> *replacement) override;
 	Walk walk() override;
 
 	static const wchar_t* pattern() { return L"<IMPLEMENT ME>"; }
@@ -948,9 +948,9 @@ public:
 	{}
 
 	bool parse(const wstring *operand, const wstring *ini_namespace, CommandListScope *scope);
-	float evaluate(CommandListState *state, HackerDevice *device=NULL) override;
-	bool static_evaluate(float *ret, HackerDevice *device=NULL) override;
-	bool optimise(HackerDevice *device, std::shared_ptr<CommandListEvaluatable> *replacement) override;
+	float evaluate(CommandListState *state, PenguinDV *device=NULL) override;
+	bool static_evaluate(float *ret, PenguinDV *device=NULL) override;
+	bool optimise(PenguinDV *device, std::shared_ptr<CommandListEvaluatable> *replacement) override;
 };
 
 class CommandListExpression {
@@ -958,16 +958,16 @@ public:
 	std::shared_ptr<CommandListEvaluatable> evaluatable;
 
 	bool parse(const wstring *expression, const wstring *ini_namespace, CommandListScope *scope);
-	float evaluate(CommandListState *state, HackerDevice *device=NULL);
-	bool static_evaluate(float *ret, HackerDevice *device=NULL);
-	bool optimise(HackerDevice *device);
+	float evaluate(CommandListState *state, PenguinDV *device=NULL);
+	bool static_evaluate(float *ret, PenguinDV *device=NULL);
+	bool optimise(PenguinDV *device);
 };
 
 class AssignmentCommand : public CommandListCommand {
 public:
 	CommandListExpression expression;
 
-	bool optimise(HackerDevice *device) override;
+	bool optimise(PenguinDV *device) override;
 };
 
 class ParamOverride : public AssignmentCommand {
@@ -1014,7 +1014,7 @@ public:
 	IfCommand(const wchar_t *section);
 
 	void run(CommandListState*) override;
-	bool optimise(HackerDevice *device) override;
+	bool optimise(PenguinDV *device) override;
 	bool noop(bool post, bool ignore_cto_pre, bool ignore_cto_post) override;
 };
 
@@ -1184,16 +1184,16 @@ public:
 	void run(CommandListState*) override;
 };
 
-void RunCommandList(HackerDevice *mHackerDevice,
-		HackerContext *mHackerContext,
+void RunCommandList(PenguinDV *mPenguinDV,
+		PenguinDC *mPenguinDC,
 		CommandList *command_list, DrawCallInfo *call_info,
 		bool post);
-void RunResourceCommandList(HackerDevice *mHackerDevice,
-		HackerContext *mHackerContext,
+void RunResourceCommandList(PenguinDV *mPenguinDV,
+		PenguinDC *mPenguinDC,
 		CommandList *command_list, ID3D11Resource **resource,
 		bool post);
-void RunViewCommandList(HackerDevice *mHackerDevice,
-		HackerContext *mHackerContext,
+void RunViewCommandList(PenguinDV *mPenguinDV,
+		PenguinDC *mPenguinDC,
 		CommandList *command_list, ID3D11View *view,
 		bool post);
 
@@ -1224,6 +1224,6 @@ bool ParseCommandListFlowControl(const wchar_t *section, const wstring *line,
 		const wstring *ini_namespace);
 std::shared_ptr<RunLinkedCommandList>
 		LinkCommandLists(CommandList *dst, CommandList *link, const wstring *ini_line);
-void optimise_command_lists(HackerDevice *device);
+void optimise_command_lists(PenguinDV *device);
 bool parse_command_list_var_name(const wstring &name, const wstring *ini_namespace, CommandListVariable **target);
 bool valid_variable_name(const wstring &name);

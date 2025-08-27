@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HackerDevice.h"
+#include "PenguinDV.h"
 
 // The "input" files are a set of objects to handle user input for both gaming 
 // purposes and for tool purposes, like hunting for shaders.
@@ -22,8 +22,8 @@
 
 class InputListener {
 public:
-	virtual void DownEvent(HackerDevice *device) = 0;
-	virtual void UpEvent(HackerDevice *device);
+	virtual void DownEvent(PenguinDV *device) = 0;
+	virtual void UpEvent(PenguinDV *device);
 };
 
 
@@ -33,7 +33,7 @@ public:
 // callback function may be used with this type signature and registered via
 // RegisterIniKeyBinding:
 
-typedef void(*InputCallback)(HackerDevice *device, void *private_data);
+typedef void(*InputCallback)(PenguinDV *device, void *private_data);
 
 // -----------------------------------------------------------------------------
 // InputCallbacks is a key descendant of InputListener, and is used primarily
@@ -50,8 +50,8 @@ private:
 public:
 	InputCallbacks(InputCallback down_cb, InputCallback up_cb, void *private_data);
 
-	void DownEvent(HackerDevice *device) override;
-	void UpEvent(HackerDevice *device) override;
+	void DownEvent(PenguinDV *device) override;
+	void UpEvent(PenguinDV *device) override;
 };
 
 
@@ -121,7 +121,7 @@ public:
 	InputAction(InputButton *button, shared_ptr<InputListener> listener);
 	virtual ~InputAction();
 
-	virtual bool Dispatch(HackerDevice *device);
+	virtual bool Dispatch(PenguinDV *device);
 };
 
 // -----------------------------------------------------------------------------
@@ -135,7 +135,7 @@ private:
 
 public:
 	RepeatingInputAction(InputButton *button, shared_ptr<InputListener> listener, int repeat);
-	bool Dispatch(HackerDevice *device) override;
+	bool Dispatch(PenguinDV *device) override;
 };
 
 // -----------------------------------------------------------------------------
@@ -148,7 +148,7 @@ private:
 	ULONGLONG state_change_time;
 public:
 	DelayedInputAction(InputButton *button, shared_ptr<InputListener> listener, int delayDown, int delayUp);
-	bool Dispatch(HackerDevice *device) override;
+	bool Dispatch(PenguinDV *device) override;
 };
 
 
@@ -170,4 +170,4 @@ wstring user_friendly_ini_key_binding(LPCWSTR app, LPCWSTR iniKey);
 // Note - this is not safe to call from within an input callback!
 void ClearKeyBindings();
 
-bool DispatchInputEvents(HackerDevice *device);
+bool DispatchInputEvents(PenguinDV *device);

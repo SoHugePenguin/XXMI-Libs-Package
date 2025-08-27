@@ -6,7 +6,7 @@
 
 #include "util.h"
 #include "Input.h"
-#include "HackerDevice.h"
+#include "PenguinDV.h"
 
 enum class KeyOverrideType {
 	INVALID = -1,
@@ -117,10 +117,10 @@ public:
 
 	void ParseIniSection(LPCWSTR section) override;
 
-	void Activate(HackerDevice *device, bool override_has_deactivate_condition);
-	void Deactivate(HackerDevice *device);
-	void Toggle(HackerDevice *device);
-	bool MatchesCurrent(HackerDevice *device);
+	void Activate(PenguinDV *device, bool override_has_deactivate_condition);
+	void Deactivate(PenguinDV *device);
+	void Toggle(PenguinDV *device);
+	bool MatchesCurrent(PenguinDV *device);
 };
 
 class KeyOverrideBase : public virtual OverrideBase, public InputListener
@@ -151,8 +151,8 @@ public:
 		type(type)
 	{}
 
-	void DownEvent(HackerDevice *device);
-	void UpEvent(HackerDevice *device);
+	void DownEvent(PenguinDV *device);
+	void UpEvent(PenguinDV *device);
 #pragma warning(suppress : 4250) // Suppress ParseIniSection inheritance via dominance warning
 };
 
@@ -171,9 +171,9 @@ public:
 	{}
 
 	void ParseIniSection(LPCWSTR section) override;
-	void DownEvent(HackerDevice *device);
-	void BackEvent(HackerDevice *device);
-	void UpdateCurrent(HackerDevice *device);
+	void DownEvent(PenguinDV *device);
+	void BackEvent(PenguinDV *device);
+	void UpdateCurrent(PenguinDV *device);
 };
 
 class KeyOverrideCycleBack : public InputListener
@@ -184,7 +184,7 @@ public:
 		cycle(cycle)
 	{}
 
-	void DownEvent(HackerDevice *device);
+	void DownEvent(PenguinDV *device);
 };
 
 class PresetOverride : public Override
@@ -204,7 +204,7 @@ public:
 
 	void Trigger(CommandListCommand *triggered_from);
 	void Exclude();
-	void Update(HackerDevice *device);
+	void Update(PenguinDV *device);
 
 	unsigned unique_triggers_required;
 };
@@ -237,11 +237,11 @@ public:
 	std::map<OverrideParam, OverrideTransitionParam> params;
 	std::map<CommandListVariable*, OverrideTransitionParam> vars;
 
-	void ScheduleTransition(HackerDevice *wrapper,
+	void ScheduleTransition(PenguinDV *wrapper,
 			OverrideParams *targets, OverrideVars *vars,
 			int time, TransitionType transition_type);
-	void UpdatePresets(HackerDevice *wrapper);
-	void OverrideTransition::UpdateTransitions(HackerDevice *wrapper);
+	void UpdatePresets(PenguinDV *wrapper);
+	void OverrideTransition::UpdateTransitions(PenguinDV *wrapper);
 	void Stop();
 };
 
@@ -269,8 +269,8 @@ public:
 	std::map<OverrideParam, OverrideGlobalSaveParam> params;
 	std::map<CommandListVariable*, OverrideGlobalSaveParam> vars;
 
-	void Reset(HackerDevice* wrapper);
-	void Save(HackerDevice *wrapper, Override *preset);
+	void Reset(PenguinDV* wrapper);
+	void Save(PenguinDV *wrapper, Override *preset);
 	void Restore(Override *preset);
 };
 

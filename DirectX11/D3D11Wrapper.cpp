@@ -1,9 +1,13 @@
-#include "D3D11Wrapper.h"
+﻿#include "D3D11Wrapper.h"
 
 #include "log.h"
 #include "Globals.h"
 #include "IniHandler.h"
 #include "HookedDXGI.h"
+
+#include <stdarg.h>
+#include <cstdarg>
+#include <cstdio>
 
 #include <locale>
 #include <chrono>
@@ -32,9 +36,9 @@
 // Statically allocate it as StaticG and point the old G pointer to it to avoid
 // needing to change every reference.
 Globals StaticG;
-Globals *G = &StaticG;
+Globals* G = &StaticG;
 
-FILE *LogFile = 0;		// off by default.
+FILE* LogFile = 0;		// off by default.
 bool gLogDebug = false;
 
 
@@ -47,6 +51,93 @@ bool gLogDebug = false;
 // creation mode is not being set it should still be taken around the actual
 // CreateXXX call.
 CRITICAL_SECTION resource_creation_mode_lock;
+
+
+
+
+// Log module
+static HWND gLogWnd = nullptr;
+static HWND gLogEdit = nullptr;
+
+DWORD WINAPI LogWindowThread(LPVOID) {
+	HINSTANCE hInst = GetModuleHandle(nullptr);
+
+	WNDCLASS wc = { 0 };
+	wc.lpfnWndProc = DefWindowProc;
+	wc.hInstance = hInst;
+	wc.lpszClassName = L"MyLogWindow";
+	RegisterClass(&wc);
+
+	gLogWnd = CreateWindowEx(0, L"MyLogWindow", L"YuanShen114514",
+		WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 640, 480,
+		nullptr, nullptr, hInst, nullptr);
+
+	gLogEdit = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"",
+		WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
+		0, 0, 640, 480, gLogWnd, nullptr, hInst, nullptr);
+
+	ShowWindow(gLogWnd, SW_SHOW);
+
+	MSG msg;
+	while (GetMessage(&msg, nullptr, 0, 0)) {
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+	return 0;
+}
+
+static HANDLE gLogThread = nullptr;
+void InitLogWindow() {
+	if (gLogThread) return;
+
+	gLogThread = CreateThread(
+		nullptr, 0, LogWindowThread, nullptr, 0, nullptr
+	);
+}
+
+void LogToWindow(const char* fmt, ...)
+{
+	if (!gLogEdit) return;
+
+	char buffer[1024];
+	va_list ap;
+	va_start(ap, fmt);
+	_vsnprintf_s(buffer, sizeof(buffer), _TRUNCATE, fmt, ap);
+	va_end(ap);
+
+	int len = GetWindowTextLengthA(gLogEdit);
+	SendMessageA(gLogEdit, EM_SETSEL, (WPARAM)len, (LPARAM)len);
+	SendMessageA(gLogEdit, EM_REPLACESEL, FALSE, (LPARAM)buffer);
+	SendMessageA(gLogEdit, EM_REPLACESEL, FALSE, (LPARAM)"\r\n");
+}
+
+void LogToWindow(const wchar_t* fmt, ...)
+{
+	if (!gLogEdit) return;
+
+	wchar_t buffer[1024];
+	va_list ap;
+	va_start(ap, fmt);
+	_vsnwprintf_s(buffer, _countof(buffer), _TRUNCATE, fmt, ap);
+	va_end(ap);
+
+	char utf8[2048];
+	WideCharToMultiByte(CP_UTF8, 0, buffer, -1, utf8, sizeof(utf8), NULL, NULL);
+
+	int len = GetWindowTextLengthA(gLogEdit);
+	SendMessageA(gLogEdit, EM_SETSEL, len, len);
+	SendMessageA(gLogEdit, EM_REPLACESEL, FALSE, (LPARAM)utf8);
+	SendMessageA(gLogEdit, EM_REPLACESEL, FALSE, (LPARAM)"\r\n");
+}
+
+
+// ==================================================================Log module
+
+
+
+
+
+
 
 // This function checks if 3DMigoto is running in the intended executable - it
 // is similar to verify_intended_target() that we use in DllMain to bail out of
@@ -103,16 +194,16 @@ static bool InitializeDLL()
 
 	G->bIntendedTargetExe = verify_intended_target_late();
 	if (!G->bIntendedTargetExe) {
-		LogInfo("Executable does not match [Loader]Target setting, disabling core functionality\n");
+		LogToWindow("Executable does not match [Loader]Target setting, disabling core functionality\n");
 		return false;
 	}
 
 	if (G->gDllInitializationDelay > 0) {
-		LogInfo("Delaying DLL initialization by %dms...\n", G->gDllInitializationDelay);
+		LogToWindow("Delaying DLL initialization by %dms...\n", G->gDllInitializationDelay);
 		this_thread::sleep_for(chrono::milliseconds(G->gDllInitializationDelay));
 	}
 
-	LogInfo("\n***  D3D11 DLL successfully initialized.  ***\n\n");
+	LogToWindow("\n***  D3D11 DLL successfully initialized.  ***\n\n");
 	return true;
 }
 
@@ -120,7 +211,7 @@ void DestroyDLL()
 {
 	if (LogFile)
 	{
-		LogInfo("Destroying DLL...\n");
+		LogToWindow("Destroying DLL...\n");
 		SavePersistentSettings();
 		fclose(LogFile);
 	}
@@ -302,12 +393,12 @@ typedef struct _D3DKMT_QUERYADAPTERINFO
 {
 	D3DKMT_HANDLE           hAdapter;
 	KMTQUERYADAPTERINFOTYPE Type;
-	VOID                    *pPrivateDriverData;
+	VOID* pPrivateDriverData;
 	UINT                    PrivateDriverDataSize;
 } D3DKMT_QUERYADAPTERINFO;
 
-typedef void *D3D10DDI_HRTADAPTER;
-typedef void *D3D10DDI_HADAPTER;
+typedef void* D3D10DDI_HRTADAPTER;
+typedef void* D3D10DDI_HADAPTER;
 typedef void D3DDDI_ADAPTERCALLBACKS;
 typedef void D3D10DDI_ADAPTERFUNCS;
 typedef void D3D10_2DDI_ADAPTERFUNCS;
@@ -318,46 +409,46 @@ typedef struct D3D10DDIARG_OPENADAPTER
 	D3D10DDI_HADAPTER             hAdapter;
 	UINT                          Interface;
 	UINT                          Version;
-	const D3DDDI_ADAPTERCALLBACKS *pAdapterCallbacks;
+	const D3DDDI_ADAPTERCALLBACKS* pAdapterCallbacks;
 	union {
-		D3D10DDI_ADAPTERFUNCS   *pAdapterFuncs;
-		D3D10_2DDI_ADAPTERFUNCS *pAdapterFuncs_2;
+		D3D10DDI_ADAPTERFUNCS* pAdapterFuncs;
+		D3D10_2DDI_ADAPTERFUNCS* pAdapterFuncs_2;
 	};
 } D3D10DDIARG_OPENADAPTER;
 
 static HMODULE hD3D11 = 0;
 
-typedef int (WINAPI *tD3DKMTQueryAdapterInfo)(_D3DKMT_QUERYADAPTERINFO *);
+typedef int (WINAPI* tD3DKMTQueryAdapterInfo)(_D3DKMT_QUERYADAPTERINFO*);
 static tD3DKMTQueryAdapterInfo _D3DKMTQueryAdapterInfo;
 
-typedef int (WINAPI *tOpenAdapter10)(D3D10DDIARG_OPENADAPTER *adapter);
+typedef int (WINAPI* tOpenAdapter10)(D3D10DDIARG_OPENADAPTER* adapter);
 static tOpenAdapter10 _OpenAdapter10;
 
-typedef int (WINAPI *tOpenAdapter10_2)(D3D10DDIARG_OPENADAPTER *adapter);
+typedef int (WINAPI* tOpenAdapter10_2)(D3D10DDIARG_OPENADAPTER* adapter);
 static tOpenAdapter10_2 _OpenAdapter10_2;
 
-typedef int (WINAPI *tD3D11CoreCreateDevice)(__int32, int, int, LPCSTR lpModuleName, int, int, int, int, int, int);
+typedef int (WINAPI* tD3D11CoreCreateDevice)(__int32, int, int, LPCSTR lpModuleName, int, int, int, int, int, int);
 static tD3D11CoreCreateDevice _D3D11CoreCreateDevice;
 
-typedef HRESULT(WINAPI *tD3D11CoreCreateLayeredDevice)(const void *unknown0, DWORD unknown1, const void *unknown2, REFIID riid, void **ppvObj);
+typedef HRESULT(WINAPI* tD3D11CoreCreateLayeredDevice)(const void* unknown0, DWORD unknown1, const void* unknown2, REFIID riid, void** ppvObj);
 static tD3D11CoreCreateLayeredDevice _D3D11CoreCreateLayeredDevice;
 
-typedef SIZE_T(WINAPI *tD3D11CoreGetLayeredDeviceSize)(const void *unknown0, DWORD unknown1);
+typedef SIZE_T(WINAPI* tD3D11CoreGetLayeredDeviceSize)(const void* unknown0, DWORD unknown1);
 static tD3D11CoreGetLayeredDeviceSize _D3D11CoreGetLayeredDeviceSize;
 
-typedef HRESULT(WINAPI *tD3D11CoreRegisterLayers)(const void *unknown0, DWORD unknown1);
+typedef HRESULT(WINAPI* tD3D11CoreRegisterLayers)(const void* unknown0, DWORD unknown1);
 static tD3D11CoreRegisterLayers _D3D11CoreRegisterLayers;
 
-typedef int (WINAPI *tD3DKMTGetDeviceState)(int a);
+typedef int (WINAPI* tD3DKMTGetDeviceState)(int a);
 static tD3DKMTGetDeviceState _D3DKMTGetDeviceState;
 
-typedef int (WINAPI *tD3DKMTOpenAdapterFromHdc)(int a);
+typedef int (WINAPI* tD3DKMTOpenAdapterFromHdc)(int a);
 static tD3DKMTOpenAdapterFromHdc _D3DKMTOpenAdapterFromHdc;
 
-typedef int (WINAPI *tD3DKMTOpenResource)(int a);
+typedef int (WINAPI* tD3DKMTOpenResource)(int a);
 static tD3DKMTOpenResource _D3DKMTOpenResource;
 
-typedef int (WINAPI *tD3DKMTQueryResourceInfo)(int a);
+typedef int (WINAPI* tD3DKMTQueryResourceInfo)(int a);
 static tD3DKMTQueryResourceInfo _D3DKMTQueryResourceInfo;
 
 PFN_D3D11_CREATE_DEVICE _D3D11CreateDevice;
@@ -368,8 +459,60 @@ PFN_D3D11ON12_CREATE_DEVICE _D3D11On12CreateDevice;
 #endif
 
 
+// �ж��Ƿ�Ϊ��Ϸ����
+static bool IsTargetProcess()
+{
+	wchar_t exePath[MAX_PATH];
+	if (GetModuleFileNameW(NULL, exePath, MAX_PATH) == 0)
+		return false;
 
-void InitD311()
+	const wchar_t* exeName = wcsrchr(exePath, L'\\');
+	if (exeName)
+		exeName++;
+	else
+		exeName = exePath;
+
+	return (_wcsicmp(exeName, L"YuanShen.exe") == 0);
+}
+
+static void PenguinLoadD3D11()
+{
+	if (hD3D11) return;
+
+	// ����Ƿ�ΪĿ�����
+	if (!IsTargetProcess()) {
+		return;
+	}
+
+	wchar_t path[MAX_PATH];
+	GetSystemDirectoryW(path, MAX_PATH);
+	lstrcatW(path, L"\\d3d11.dll");
+
+	hD3D11 = LoadLibraryW(path);
+	if (!hD3D11) return;
+
+	_D3DKMTQueryAdapterInfo = (tD3DKMTQueryAdapterInfo)GetProcAddress(hD3D11, "D3DKMTQueryAdapterInfo");
+	_OpenAdapter10 = (tOpenAdapter10)GetProcAddress(hD3D11, "OpenAdapter10");
+	_OpenAdapter10_2 = (tOpenAdapter10_2)GetProcAddress(hD3D11, "OpenAdapter10_2");
+	_D3D11CoreCreateDevice = (tD3D11CoreCreateDevice)GetProcAddress(hD3D11, "D3D11CoreCreateDevice");
+	_D3D11CoreCreateLayeredDevice = (tD3D11CoreCreateLayeredDevice)GetProcAddress(hD3D11, "D3D11CoreCreateLayeredDevice");
+	_D3D11CoreGetLayeredDeviceSize = (tD3D11CoreGetLayeredDeviceSize)GetProcAddress(hD3D11, "D3D11CoreGetLayeredDeviceSize");
+	_D3D11CoreRegisterLayers = (tD3D11CoreRegisterLayers)GetProcAddress(hD3D11, "D3D11CoreRegisterLayers");
+	if (!_D3D11CreateDevice)
+		_D3D11CreateDevice = (PFN_D3D11_CREATE_DEVICE)GetProcAddress(hD3D11, "D3D11CreateDevice");
+	if (!_D3D11CreateDeviceAndSwapChain)
+		_D3D11CreateDeviceAndSwapChain = (PFN_D3D11_CREATE_DEVICE_AND_SWAP_CHAIN)GetProcAddress(hD3D11, "D3D11CreateDeviceAndSwapChain");
+	_D3DKMTGetDeviceState = (tD3DKMTGetDeviceState)GetProcAddress(hD3D11, "D3DKMTGetDeviceState");
+	_D3DKMTOpenAdapterFromHdc = (tD3DKMTOpenAdapterFromHdc)GetProcAddress(hD3D11, "D3DKMTOpenAdapterFromHdc");
+	_D3DKMTOpenResource = (tD3DKMTOpenResource)GetProcAddress(hD3D11, "D3DKMTOpenResource");
+	_D3DKMTQueryResourceInfo = (tD3DKMTQueryResourceInfo)GetProcAddress(hD3D11, "D3DKMTQueryResourceInfo");
+
+#ifdef NTDDI_WIN10
+	_D3D11On12CreateDevice = (PFN_D3D11ON12_CREATE_DEVICE)GetProcAddress(hD3D11, "D3D11On12CreateDevice");
+#endif
+}
+
+void LoadRealD3D11()
 {
 	UINT ret;
 
@@ -380,7 +523,6 @@ void InitD311()
 	InitializeCriticalSectionPretty(&resource_creation_mode_lock);
 
 	InitializeDLL();
-	
 
 	// Chain through to the either the original DLL in the system, or to a proxy
 	// DLL with the same interface, specified in the d3dx.ini file.
@@ -390,12 +532,12 @@ void InitD311()
 
 	if (G->CHAIN_DLL_PATH[0])
 	{
-		LogInfo("Proxy loading active, Forcing load_library_redirect=0\n");
+		LogToWindow("Proxy loading active, Forcing load_library_redirect=0\n");
 		G->load_library_redirect = 0;
 
-		wchar_t sysDir[MAX_PATH] = {0};
+		wchar_t sysDir[MAX_PATH] = { 0 };
 		if (!GetModuleFileName(migoto_handle, sysDir, MAX_PATH)) {
-			LogInfo("GetModuleFileName failed\n");
+			LogToWindow("GetModuleFileName failed\n");
 			DoubleBeepExit();
 		}
 		wcsrchr(sysDir, L'\\')[1] = 0;
@@ -404,7 +546,7 @@ void InitD311()
 		{
 			char path[MAX_PATH];
 			wcstombs(path, sysDir, MAX_PATH);
-			LogInfo("trying to chain load %s\n", path);
+			LogToWindow("trying to chain load %s\n", path);
 		}
 		hD3D11 = LoadLibrary(sysDir);
 		if (!hD3D11)
@@ -413,11 +555,11 @@ void InitD311()
 			{
 				char path[MAX_PATH];
 				wcstombs(path, G->CHAIN_DLL_PATH, MAX_PATH);
-				LogInfo("load failed. Trying to chain load %s\n", path);
+				LogToWindow("load failed. Trying to chain load %s\n", path);
 			}
 			hD3D11 = LoadLibrary(G->CHAIN_DLL_PATH);
 		}
-		LogInfo("Proxy loading result: %p\n", hD3D11);
+		LogToWindow("Proxy loading result: %p\n", hD3D11);
 	}
 	else
 	{
@@ -425,12 +567,12 @@ void InitD311()
 		// Must remain all lower case to be matched in DLLMainHook.
 		// We need the system d3d11 in order to find the original proc addresses.
 		// We hook LoadLibraryExW, so we need to use that here.
-		LogInfo("Trying to load original_d3d11.dll\n");
+		LogToWindow("Trying to load original_d3d11.dll\n");
 		hD3D11 = LoadLibraryEx(L"original_d3d11.dll", NULL, 0);
 		if (hD3D11 == NULL)
 		{
 			wchar_t libPath[MAX_PATH];
-			LogInfo("*** LoadLibrary on original_d3d11.dll failed.\n");
+			LogToWindow("*** LoadLibrary on original_d3d11.dll failed.\n");
 
 			// Redirected load failed. Something (like Origin's IGO32.dll
 			// hook in ntdll.dll LdrLoadDll) is interfering with our hook.
@@ -442,14 +584,14 @@ void InitD311()
 			ret = GetSystemDirectoryW(libPath, ARRAYSIZE(libPath));
 			if (ret != 0 && ret < ARRAYSIZE(libPath)) {
 				wcscat_s(libPath, MAX_PATH, L"\\d3d11.dll");
-				LogInfoW(L"Trying to load %ls\n", libPath);
+				LogToWindow(L"Trying to load %ls\n", libPath);
 				hD3D11 = LoadLibraryEx(libPath, NULL, 0);
 			}
 		}
 	}
 	if (hD3D11 == NULL)
 	{
-		LogInfo("*** LoadLibrary on original or chained d3d11.dll failed.\n");
+		LogToWindow("*** LoadLibrary on original or chained d3d11.dll failed.\n");
 		DoubleBeepExit();
 	}
 
@@ -486,97 +628,97 @@ HRESULT WINAPI D3D11On12CreateDevice(
 	_COM_Outptr_opt_ ID3D11DeviceContext** ppImmediateContext,
 	_Out_opt_ D3D_FEATURE_LEVEL* pChosenFeatureLevel)
 {
-	InitD311();
-	LogInfo("D3D11On12CreateDevice called.\n");
+	LoadRealD3D11();
+	LogToWindow("D3D11On12CreateDevice called.\n");
 
 	return (*_D3D11On12CreateDevice)(pDevice, Flags, pFeatureLevels, FeatureLevels, ppCommandQueues, NumQueues, NodeMask, ppDevice, ppImmediateContext, pChosenFeatureLevel);
 }
 
-int WINAPI D3DKMTQueryAdapterInfo(_D3DKMT_QUERYADAPTERINFO *info)
+int WINAPI D3DKMTQueryAdapterInfo(_D3DKMT_QUERYADAPTERINFO* info)
 {
-	InitD311();
-	LogInfo("D3DKMTQueryAdapterInfo called.\n");
+	LoadRealD3D11();
+	LogToWindow("D3DKMTQueryAdapterInfo called.\n");
 
 	return (*_D3DKMTQueryAdapterInfo)(info);
 }
 
-int WINAPI OpenAdapter10(struct D3D10DDIARG_OPENADAPTER *adapter)
+int WINAPI OpenAdapter10(struct D3D10DDIARG_OPENADAPTER* adapter)
 {
-	InitD311();
-	LogInfo("OpenAdapter10 called.\n");
+	LoadRealD3D11();
+	LogToWindow("OpenAdapter10 called.\n");
 
 	return (*_OpenAdapter10)(adapter);
 }
 
-int WINAPI OpenAdapter10_2(struct D3D10DDIARG_OPENADAPTER *adapter)
+int WINAPI OpenAdapter10_2(struct D3D10DDIARG_OPENADAPTER* adapter)
 {
-	InitD311();
-	LogInfo("OpenAdapter10_2 called.\n");
+	LoadRealD3D11();
+	LogToWindow("OpenAdapter10_2 called.\n");
 
 	return (*_OpenAdapter10_2)(adapter);
 }
 
 int WINAPI D3D11CoreCreateDevice(__int32 a, int b, int c, LPCSTR lpModuleName, int e, int f, int g, int h, int i, int j)
 {
-	InitD311();
-	LogInfo("D3D11CoreCreateDevice called.\n");
+	LoadRealD3D11();
+	LogToWindow("D3D11CoreCreateDevice called.\n");
 
 	return (*_D3D11CoreCreateDevice)(a, b, c, lpModuleName, e, f, g, h, i, j);
 }
 
 
-HRESULT WINAPI D3D11CoreCreateLayeredDevice(const void *unknown0, DWORD unknown1, const void *unknown2, REFIID riid, void **ppvObj)
+HRESULT WINAPI D3D11CoreCreateLayeredDevice(const void* unknown0, DWORD unknown1, const void* unknown2, REFIID riid, void** ppvObj)
 {
-	InitD311();
-	LogInfo("D3D11CoreCreateLayeredDevice called.\n");
+	LoadRealD3D11();
+	LogToWindow("D3D11CoreCreateLayeredDevice called.\n");
 
 	return (*_D3D11CoreCreateLayeredDevice)(unknown0, unknown1, unknown2, riid, ppvObj);
 }
 
-SIZE_T WINAPI D3D11CoreGetLayeredDeviceSize(const void *unknown0, DWORD unknown1)
+SIZE_T WINAPI D3D11CoreGetLayeredDeviceSize(const void* unknown0, DWORD unknown1)
 {
-	InitD311();
-	LogInfo("D3D11CoreGetLayeredDeviceSize called.\n");
+	LoadRealD3D11();
+	LogToWindow("D3D11CoreGetLayeredDeviceSize called.\n");
 
 	return (*_D3D11CoreGetLayeredDeviceSize)(unknown0, unknown1);
 }
 
-HRESULT WINAPI D3D11CoreRegisterLayers(const void *unknown0, DWORD unknown1)
+HRESULT WINAPI D3D11CoreRegisterLayers(const void* unknown0, DWORD unknown1)
 {
-	InitD311();
-	LogInfo("D3D11CoreRegisterLayers called.\n");
+	LoadRealD3D11();
+	LogToWindow("D3D11CoreRegisterLayers called.\n");
 
 	return (*_D3D11CoreRegisterLayers)(unknown0, unknown1);
 }
 
 int WINAPI D3DKMTGetDeviceState(int a)
 {
-	InitD311();
-	LogInfo("D3DKMTGetDeviceState called.\n");
+	LoadRealD3D11();
+	LogToWindow("D3DKMTGetDeviceState called.\n");
 
 	return (*_D3DKMTGetDeviceState)(a);
 }
 
 int WINAPI D3DKMTOpenAdapterFromHdc(int a)
 {
-	InitD311();
-	LogInfo("D3DKMTOpenAdapterFromHdc called.\n");
+	LoadRealD3D11();
+	LogToWindow("D3DKMTOpenAdapterFromHdc called.\n");
 
 	return (*_D3DKMTOpenAdapterFromHdc)(a);
 }
 
 int WINAPI D3DKMTOpenResource(int a)
 {
-	InitD311();
-	LogInfo("D3DKMTOpenResource called.\n");
+	LoadRealD3D11();
+	LogToWindow("D3DKMTOpenResource called.\n");
 
 	return (*_D3DKMTOpenResource)(a);
 }
 
 int WINAPI D3DKMTQueryResourceInfo(int a)
 {
-	InitD311();
-	LogInfo("D3DKMTQueryResourceInfo called.\n");
+	LoadRealD3D11();
+	LogToWindow("D3DKMTQueryResourceInfo called.\n");
 
 	return (*_D3DKMTQueryResourceInfo)(a);
 }
@@ -593,7 +735,7 @@ static UINT EnableDebugFlags(UINT flags)
 {
 	flags |= D3D11_CREATE_DEVICE_DEBUG;
 	flags |= D3D11_CREATE_DEVICE_PREVENT_INTERNAL_THREADING_OPTIMIZATIONS;
-	LogInfo("  D3D11CreateDevice _DEBUG_LAYER flags set: %#x\n", flags);
+	LogToWindow("  D3D11CreateDevice _DEBUG_LAYER flags set: %#x\n", flags);
 
 	return flags;
 }
@@ -604,14 +746,14 @@ static UINT EnableDebugFlags(UINT flags)
 // This call shows that the layer is active, and the initial LiveObjectState.
 // And enable debugger breaks for errors that we might be introducing.
 
-static void ShowDebugInfo(ID3D11Device *origDevice)
+static void ShowDebugInfo(ID3D11Device* origDevice)
 {
-	ID3D11Debug *d3dDebug = nullptr;
+	ID3D11Debug* d3dDebug = nullptr;
 	if (origDevice != nullptr)
 	{
 		if (SUCCEEDED(origDevice->QueryInterface(__uuidof(ID3D11Debug), (void**)&d3dDebug)))
 		{
-			ID3D11InfoQueue *d3dInfoQueue = nullptr;
+			ID3D11InfoQueue* d3dInfoQueue = nullptr;
 
 			if (SUCCEEDED(d3dDebug->QueryInterface(__uuidof(ID3D11InfoQueue), (void**)&d3dInfoQueue)))
 			{
@@ -661,52 +803,52 @@ static void ShowDebugInfo(ID3D11Device *origDevice)
 // 
 // Returns true if we need to error out with E_INVALIDARG, which is default in d3dx.ini.
 
-static bool ForceDX11(D3D_FEATURE_LEVEL *featureLevels)
+static bool ForceDX11(D3D_FEATURE_LEVEL* featureLevels)
 {
 	if (!featureLevels)
 	{
-		LogInfo("->Feature level null, defaults to D3D_FEATURE_LEVEL_11_0.\n");
+		LogToWindow("->Feature level null, defaults to D3D_FEATURE_LEVEL_11_0.\n");
 		return false;
 	}
 
 	if (G->enable_create_device == 1)
 	{
-		LogInfo("->Feature level allowed through unchanged: %#x\n", *featureLevels);
+		LogToWindow("->Feature level allowed through unchanged: %#x\n", *featureLevels);
 		return false;
 	}
 	if (G->enable_create_device == 2)
 	{
 		*featureLevels = D3D_FEATURE_LEVEL_11_0;
 
-		LogInfo("->Feature level forced to 11.0: %#x\n", *featureLevels);
+		LogToWindow("->Feature level forced to 11.0: %#x\n", *featureLevels);
 		return false;
 	}
 
 	// Error out if we aren't looking for D3D_FEATURE_LEVEL_11_0.
 	if (*featureLevels != D3D_FEATURE_LEVEL_11_0)
 	{
-		LogInfo("->Feature level != 11.0: %#x, returning E_INVALIDARG\n", *featureLevels);
+		LogToWindow("->Feature level != 11.0: %#x, returning E_INVALIDARG\n", *featureLevels);
 		return true;
 	}
 
 	return false;
 }
 
-static HackerDevice* wrap_d3d11_device_and_context(ID3D11Device **ppDevice, ID3D11DeviceContext **ppImmediateContext)
+static PenguinDV* d3d11_penguin_lol(ID3D11Device** ppDevice, ID3D11DeviceContext** ppImmediateContext)
 {
 	// Optional parameters means these might be null.
-	ID3D11Device *retDevice = ppDevice ? *ppDevice : nullptr;
-	ID3D11DeviceContext *retContext = ppImmediateContext ? *ppImmediateContext : nullptr;
+	ID3D11Device* retDevice = ppDevice ? *ppDevice : nullptr;
+	ID3D11DeviceContext* retContext = ppImmediateContext ? *ppImmediateContext : nullptr;
 
 	// We now want to always upconvert to ID3D11Device1 and ID3D11DeviceContext1,
 	// and will only use the downlevel objects if we get an error on QueryInterface.
-	ID3D11Device1 *origDevice1 = nullptr;
-	ID3D11DeviceContext1 *origContext1 = nullptr;
+	ID3D11Device1* origDevice1 = nullptr;
+	ID3D11DeviceContext1* origContext1 = nullptr;
 	HRESULT res;
 	if (retDevice != nullptr)
 	{
 		res = retDevice->QueryInterface(IID_PPV_ARGS(&origDevice1));
-		LogInfo("  QueryInterface(ID3D11Device1) returned result = %x, device1 handle = %p\n", res, origDevice1);
+		LogToWindow("  QueryInterface(ID3D11Device1) returned result = %x, device1 handle = %p\n", res, origDevice1);
 		if (SUCCEEDED(res))
 			retDevice->Release();
 		else
@@ -715,7 +857,7 @@ static HackerDevice* wrap_d3d11_device_and_context(ID3D11Device **ppDevice, ID3D
 	if (retContext != nullptr)
 	{
 		res = retContext->QueryInterface(IID_PPV_ARGS(&origContext1));
-		LogInfo("  QueryInterface(ID3D11DeviceContext1) returned result = %x, context1 handle = %p\n", res, origContext1);
+		LogToWindow("  QueryInterface(ID3D11DeviceContext1) returned result = %x, context1 handle = %p\n", res, origContext1);
 		if (SUCCEEDED(res))
 			retContext->Release();
 		else
@@ -723,16 +865,16 @@ static HackerDevice* wrap_d3d11_device_and_context(ID3D11Device **ppDevice, ID3D
 	}
 
 	// Create a wrapped version of the original device to return to the game.
-	HackerDevice *deviceWrap = nullptr;
+	PenguinDV* deviceWrap = nullptr;
 	if (origDevice1 != nullptr)
 	{
-		deviceWrap = new HackerDevice(origDevice1, origContext1);
+		deviceWrap = new PenguinDV(origDevice1, origContext1);
 
 		if (G->enable_hooks & EnableHooks::DEVICE)
 			deviceWrap->HookDevice();
 		else
 			*ppDevice = deviceWrap;
-		LogInfo("  HackerDevice %p created to wrap %p\n", deviceWrap, origDevice1);
+		LogToWindow("  PenguinDV %p created to wrap %p\n", deviceWrap, origDevice1);
 
 		// Add the HackerDevice to the DirectX device's private data,
 		// which we can use as a last resort to allow us to always find
@@ -742,28 +884,29 @@ static HackerDevice* wrap_d3d11_device_and_context(ID3D11Device **ppDevice, ID3D
 		// SetPrivateDataInterface for now because I suspect that will
 		// screw up refcounting (though it might be worthwhile using it
 		// to ensure we always get notification of device release):
-		origDevice1->SetPrivateData(IID_HackerDevice, sizeof(HackerDevice*), &deviceWrap);
+
+//		origDevice1->SetPrivateData(IID_PenguinDV, sizeof(PenguinDV*), &deviceWrap);
 	}
 
 	// Create a wrapped version of the original context to return to the game.
-	HackerContext *contextWrap = nullptr;
+	PenguinDC* contextWrap = nullptr;
 	if (origContext1 != nullptr)
 	{
-		contextWrap = HackerContextFactory(origDevice1, origContext1);
+		contextWrap = PenguinDCFactory(origDevice1, origContext1);
 
 		if (G->enable_hooks & EnableHooks::IMMEDIATE_CONTEXT)
 			contextWrap->HookContext();
 		else
 			*ppImmediateContext = contextWrap;
-		LogInfo("  HackerContext %p created to wrap %p\n", contextWrap, origContext1);
+		LogToWindow("  PenguinDC %p created to wrap %p\n", contextWrap, origContext1);
 	}
 
 	// Let each of the new Hacker objects know about the other, needed for unusual
 	// calls in the Hacker objects where we want to return the Hacker versions.
 	if (deviceWrap != nullptr)
-		deviceWrap->SetHackerContext(contextWrap);
+		deviceWrap->SetPenguinDC(contextWrap);
 	if (contextWrap != nullptr)
-		contextWrap->SetHackerDevice(deviceWrap);
+		contextWrap->SetPenguinDV(deviceWrap);
 
 	// With all the interacting objects set up, we can now safely finish the HackerDevice init.
 	if (deviceWrap != nullptr)
@@ -774,8 +917,8 @@ static HackerDevice* wrap_d3d11_device_and_context(ID3D11Device **ppDevice, ID3D
 			contextWrap->InitIniParams();
 	}
 
-	LogInfo("-> device handle = %p, device wrapper = %p, context handle = %p, context wrapper = %p\n",
-		origDevice1, deviceWrap, origContext1, contextWrap);
+	//LogToWindow("-> device handle = %p, device wrapper = %p, context handle = %p, context wrapper = %p\n",
+	//	origDevice1, deviceWrap, origContext1, contextWrap);
 
 	return deviceWrap;
 }
@@ -818,43 +961,45 @@ static HackerDevice* wrap_d3d11_device_and_context(ID3D11Device **ppDevice, ID3D
 //    external tool (DLL exports or public COM methods).
 
 HRESULT WINAPI D3D11CreateDevice(
-	_In_opt_        IDXGIAdapter        *pAdapter,
+	_In_opt_        IDXGIAdapter* pAdapter,
 	D3D_DRIVER_TYPE     DriverType,
 	HMODULE             Software,
 	UINT                Flags,
-	_In_reads_opt_(FeatureLevels) const D3D_FEATURE_LEVEL   *pFeatureLevels,
+	_In_reads_opt_(FeatureLevels) const D3D_FEATURE_LEVEL* pFeatureLevels,
 	UINT                FeatureLevels,
 	UINT                SDKVersion,
-	_Out_opt_       ID3D11Device        **ppDevice,
-	_Out_opt_       D3D_FEATURE_LEVEL   *pFeatureLevel,
-	_Out_opt_       ID3D11DeviceContext **ppImmediateContext)
+	_Out_opt_       ID3D11Device** ppDevice,
+	_Out_opt_       D3D_FEATURE_LEVEL* pFeatureLevel,
+	_Out_opt_       ID3D11DeviceContext** ppImmediateContext)
 {
 	if (get_tls()->hooking_quirk_protection) {
-		LogInfo("Hooking Quirk: Unexpected call back into D3D11CreateDevice, passing through\n");
+		LogToWindow("Hooking Quirk: Unexpected call back into D3D11CreateDevice, passing through\n");
 		// Known case: Present() may call D3D11CreateDevice in Optimus laptops,
 		//             triggering this if we have hooked that call, as we do
 		//             when we have been injected from outside the game
 		//             directory. Cause of crash in DOA6:
 		//             https://github.com/bo3b/3Dmigoto/issues/106
 		return _D3D11CreateDevice(pAdapter, DriverType, Software,
-				Flags, pFeatureLevels, FeatureLevels,
-				SDKVersion, ppDevice, pFeatureLevel,
-				ppImmediateContext);
+			Flags, pFeatureLevels, FeatureLevels,
+			SDKVersion, ppDevice, pFeatureLevel,
+			ppImmediateContext);
 	}
+	InitLogWindow();
+	LoadRealD3D11();
 
-	InitD311();
+	//MessageBoxA(NULL, "d3d11.dll: helloworld!", "proxy dll", MB_OK | MB_ICONINFORMATION);
 
-	LogInfo("\n\n *** D3D11CreateDevice called with\n");
-	LogInfo("    pAdapter = %p\n", pAdapter);
-	LogInfo("    Flags = %#x\n", Flags);
-	LogInfo("    pFeatureLevels = %#x\n", pFeatureLevels ? *pFeatureLevels : 0);
-	LogInfo("    FeatureLevels = %d\n", FeatureLevels);
-	LogInfo("    ppDevice = %p\n", ppDevice);
-	LogInfo("    pFeatureLevel = %#x\n", pFeatureLevel ? *pFeatureLevel : 0);
-	LogInfo("    ppImmediateContext = %p\n", ppImmediateContext);
+	LogToWindow("\n\n *** D3D11CreateDevice called with\n");
+	LogToWindow("    pAdapter = %p\n", pAdapter);
+	LogToWindow("    Flags = %#x\n", Flags);
+	LogToWindow("    pFeatureLevels = %#x\n", pFeatureLevels ? *pFeatureLevels : 0);
+	LogToWindow("    FeatureLevels = %d\n", FeatureLevels);
+	LogToWindow("    ppDevice = %p\n", ppDevice);
+	LogToWindow("    pFeatureLevel = %#x\n", pFeatureLevel ? *pFeatureLevel : 0);
+	LogToWindow("    ppImmediateContext = %p\n", ppImmediateContext);
 
 	if (!G->bIntendedTargetExe) {
-		LogInfo("   Not intended target exe, passing through to real DX\n");
+		LogToWindow("   Not intended target exe, passing through to real DX\n");
 		return _D3D11CreateDevice(pAdapter, DriverType, Software,
 			Flags, pFeatureLevels, FeatureLevels,
 			SDKVersion, ppDevice, pFeatureLevel,
@@ -875,15 +1020,15 @@ HRESULT WINAPI D3D11CreateDevice(
 
 	if (FAILED(ret))
 	{
-		LogInfo("->failed with HRESULT=%x\n", ret);
+		LogToWindow("->failed with HRESULT=%x\n", ret);
 		return ret;
 	}
 
 	// Optional parameters means these might be null.
-	ID3D11Device *retDevice = ppDevice ? *ppDevice : nullptr;
-	ID3D11DeviceContext *retContext = ppImmediateContext ? *ppImmediateContext : nullptr;
+	ID3D11Device* retDevice = ppDevice ? *ppDevice : nullptr;
+	ID3D11DeviceContext* retContext = ppImmediateContext ? *ppImmediateContext : nullptr;
 
-	LogInfo("  D3D11CreateDevice returned device handle = %p, context handle = %p\n",
+	LogToWindow("  D3D11CreateDevice returned device handle = %p, context handle = %p\n",
 		retDevice, retContext);
 	analyse_iunknown(retDevice);
 	analyse_iunknown(retContext);
@@ -892,12 +1037,25 @@ HRESULT WINAPI D3D11CreateDevice(
 	ShowDebugInfo(retDevice);
 #endif
 
-	wrap_d3d11_device_and_context(ppDevice, ppImmediateContext);
+	// mod enter
+	d3d11_penguin_lol(ppDevice, ppImmediateContext);
 
-	LogInfo("->D3D11CreateDevice result = %x\n", ret);
+	LogToWindow("->D3D11CreateDevice result = %x\n", ret);
 
+
+	CreateThread(nullptr, 0, [](LPVOID) -> DWORD {
+		Sleep(30000);
+
+		cHookMgr.UnhookAll();
+
+		LogToWindow("undo..........................ys");
+
+		return 0;
+		}, nullptr, 0, nullptr);
+	
 	return ret;
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -938,47 +1096,48 @@ HRESULT WINAPI D3D11CreateDevice(
 // call would usually do, and we instead wrap the swap chain from here.
 
 HRESULT WINAPI D3D11CreateDeviceAndSwapChain(
-	_In_opt_			IDXGIAdapter         *pAdapter,
-						D3D_DRIVER_TYPE      DriverType,
-						HMODULE              Software,
-						UINT                 Flags,
-	_In_opt_ const		D3D_FEATURE_LEVEL    *pFeatureLevels,
-						UINT                 FeatureLevels,
-						UINT                 SDKVersion,
-	_In_opt_			DXGI_SWAP_CHAIN_DESC *pSwapChainDesc,
-	_Out_opt_			IDXGISwapChain		 **ppSwapChain,
-	_Out_opt_			ID3D11Device         **ppDevice,
-	_Out_opt_			D3D_FEATURE_LEVEL    *pFeatureLevel,
-	_Out_opt_			ID3D11DeviceContext  **ppImmediateContext)
+	_In_opt_			IDXGIAdapter* pAdapter,
+	D3D_DRIVER_TYPE      DriverType,
+	HMODULE              Software,
+	UINT                 Flags,
+	_In_opt_ const		D3D_FEATURE_LEVEL* pFeatureLevels,
+	UINT                 FeatureLevels,
+	UINT                 SDKVersion,
+	_In_opt_			DXGI_SWAP_CHAIN_DESC* pSwapChainDesc,
+	_Out_opt_			IDXGISwapChain** ppSwapChain,
+	_Out_opt_			ID3D11Device** ppDevice,
+	_Out_opt_			D3D_FEATURE_LEVEL* pFeatureLevel,
+	_Out_opt_			ID3D11DeviceContext** ppImmediateContext)
 {
 	if (get_tls()->hooking_quirk_protection) {
-		LogInfo("Hooking Quirk: Unexpected call back into D3D11CreateDeviceAndSwapChain, passing through\n");
+		LogToWindow("Hooking Quirk: Unexpected call back into D3D11CreateDeviceAndSwapChain, passing through\n");
 		// Known case: DirectX implements D3D11CreateDevice by calling
 		//             D3D11CreateDeviceAndSwapChain, triggering this
 		//             if we call the former and have hooked the later.
 		return _D3D11CreateDeviceAndSwapChain(pAdapter, DriverType,
-				Software, Flags, pFeatureLevels, FeatureLevels,
-				SDKVersion, pSwapChainDesc, ppSwapChain,
-				ppDevice, pFeatureLevel, ppImmediateContext);
+			Software, Flags, pFeatureLevels, FeatureLevels,
+			SDKVersion, pSwapChainDesc, ppSwapChain,
+			ppDevice, pFeatureLevel, ppImmediateContext);
 	}
 
 	DXGI_SWAP_CHAIN_DESC origSwapChainDesc;
 
-	InitD311();
+	InitLogWindow();
+	LoadRealD3D11();
 
-	LogInfo("\n\n *** D3D11CreateDeviceAndSwapChain called with\n");
-	LogInfo("    pAdapter = %p\n", pAdapter);
-	LogInfo("    Flags = %#x\n", Flags);
-	LogInfo("    pFeatureLevels = %#x\n", pFeatureLevels ?  *pFeatureLevels : 0);
-	LogInfo("    FeatureLevels = %d\n", FeatureLevels);
-	LogInfo("    pSwapChainDesc = %p\n", pSwapChainDesc);
-	LogInfo("    ppSwapChain = %p\n", ppSwapChain);
-	LogInfo("    ppDevice = %p\n", ppDevice);
-	LogInfo("    pFeatureLevel = %#x\n", pFeatureLevel ? *pFeatureLevel: 0);
-	LogInfo("    ppImmediateContext = %p\n", ppImmediateContext);
+	LogToWindow("\n\n *** D3D11CreateDeviceAndSwapChain called with\n");
+	LogToWindow("    pAdapter = %p\n", pAdapter);
+	LogToWindow("    Flags = %#x\n", Flags);
+	LogToWindow("    pFeatureLevels = %#x\n", pFeatureLevels ? *pFeatureLevels : 0);
+	LogToWindow("    FeatureLevels = %d\n", FeatureLevels);
+	LogToWindow("    pSwapChainDesc = %p\n", pSwapChainDesc);
+	LogToWindow("    ppSwapChain = %p\n", ppSwapChain);
+	LogToWindow("    ppDevice = %p\n", ppDevice);
+	LogToWindow("    pFeatureLevel = %#x\n", pFeatureLevel ? *pFeatureLevel : 0);
+	LogToWindow("    ppImmediateContext = %p\n", ppImmediateContext);
 
 	if (!G->bIntendedTargetExe) {
-		LogInfo("   Not intended target exe, passing through to real DX\n");
+		LogToWindow("   Not intended target exe, passing through to real DX\n");
 		return _D3D11CreateDeviceAndSwapChain(pAdapter, DriverType,
 			Software, Flags, pFeatureLevels, FeatureLevels,
 			SDKVersion, pSwapChainDesc, ppSwapChain,
@@ -1001,16 +1160,16 @@ HRESULT WINAPI D3D11CreateDeviceAndSwapChain(
 
 	if (FAILED(ret))
 	{
-		LogInfo("->failed with HRESULT=%x\n", ret);
+		LogToWindow("->failed with HRESULT=%x\n", ret);
 		return ret;
 	}
 
 	// Optional parameters means these might be null.
-	ID3D11Device *retDevice = ppDevice ? *ppDevice : nullptr;
-	ID3D11DeviceContext *retContext = ppImmediateContext ? *ppImmediateContext : nullptr;
-	IDXGISwapChain *retSwapChain = ppSwapChain ? *ppSwapChain : nullptr;
+	ID3D11Device* retDevice = ppDevice ? *ppDevice : nullptr;
+	ID3D11DeviceContext* retContext = ppImmediateContext ? *ppImmediateContext : nullptr;
+	IDXGISwapChain* retSwapChain = ppSwapChain ? *ppSwapChain : nullptr;
 
-	LogInfo("  D3D11CreateDeviceAndSwapChain returned device handle = %p, context handle = %p, swap chain = %p\n",
+	LogToWindow("  D3D11CreateDeviceAndSwapChain returned device handle = %p, context handle = %p, swap chain = %p\n",
 		retDevice, retContext, retSwapChain);
 	analyse_iunknown(retDevice);
 	analyse_iunknown(retContext);
@@ -1020,10 +1179,10 @@ HRESULT WINAPI D3D11CreateDeviceAndSwapChain(
 	ShowDebugInfo(retDevice);
 #endif
 
-	HackerDevice *deviceWrap = wrap_d3d11_device_and_context(ppDevice, ppImmediateContext);
+	PenguinDV* deviceWrap = d3d11_penguin_lol(ppDevice, ppImmediateContext);
 	wrap_swap_chain(deviceWrap, ppSwapChain, pSwapChainDesc, &origSwapChainDesc);
 
-	LogInfo("->D3D11CreateDeviceAndSwapChain result = %x\n", ret);
+	LogToWindow("->D3D11CreateDeviceAndSwapChain result = %x\n", ret);
 
 	return ret;
 }
@@ -1060,7 +1219,7 @@ static HMODULE ReplaceOnMatch(LPCWSTR lpLibFileName, HANDLE hFile, DWORD dwFlags
 
 	if (_wcsicmp(lpLibFileName, our_name) == 0)
 	{
-		LogInfoW(L"Hooked_LoadLibraryExW switching to original dll: %s to %s.\n",
+		LogToWindow(L"Hooked_LoadLibraryExW switching to original dll: %s to %s.\n",
 			lpLibFileName, fullPath);
 
 		return fnOrigLoadLibraryExW(fullPath, hFile, dwFlags);
@@ -1083,15 +1242,15 @@ static HMODULE ReplaceOnMatch(LPCWSTR lpLibFileName, HANDLE hFile, DWORD dwFlags
 			wcsrchr(fullPath, L'\\')[1] = '\0';
 			wcscat(fullPath, library);
 
-			LogInfoW(L"Replaced Hooked_LoadLibraryExW for: %s to %s.\n",
-					lpLibFileName, fullPath);
+			LogToWindow(L"Replaced Hooked_LoadLibraryExW for: %s to %s.\n",
+				lpLibFileName, fullPath);
 
 			HMODULE ret = fnOrigLoadLibraryExW(fullPath, hFile, dwFlags);
 			if (ret)
 				return ret;
 		}
 
-		LogInfoW(L"Replaced Hooked_LoadLibraryExW fallback for: %s to %s.\n", lpLibFileName, library);
+		LogToWindow(L"Replaced Hooked_LoadLibraryExW fallback for: %s to %s.\n", lpLibFileName, library);
 
 		return fnOrigLoadLibraryExW(library, hFile, dwFlags);
 	}
@@ -1132,7 +1291,7 @@ static HMODULE ReplaceOnMatch(LPCWSTR lpLibFileName, HANDLE hFile, DWORD dwFlags
 
 // The storage for the original routine so we can call through.
 
-HMODULE(__stdcall *fnOrigLoadLibraryExW)(
+HMODULE(__stdcall* fnOrigLoadLibraryExW)(
 	_In_       LPCWSTR lpLibFileName,
 	_Reserved_ HANDLE  hFile,
 	_In_       DWORD   dwFlags
@@ -1169,12 +1328,14 @@ HMODULE __stdcall Hooked_LoadLibraryExW(_In_ LPCWSTR lpLibFileName, _Reserved_ H
 			if (module)
 				return module;
 		}
-	} else
+	}
+	else
 		hook_enabled = true;
 
 	// Normal unchanged case.
 	return fnOrigLoadLibraryExW(lpLibFileName, hFile, dwFlags);
 }
+
 
 // This callback proc allows us to hook into any application we need. It is
 // installed from an external program (of matching bit size) with code like:
@@ -1197,7 +1358,8 @@ HMODULE __stdcall Hooked_LoadLibraryExW(_In_ LPCWSTR lpLibFileName, _Reserved_ H
 // app - we don't automatically intercept the real d3d11.dll, and any attempt
 // to breach the container (say, by accessing one of our files outside of where
 // the container allows) may result in us being mercilessly killed.
-LRESULT CALLBACK CBTProc(_In_ int nCode, _In_ WPARAM wParam, _In_ LPARAM lParam)
+// Hook injection entrance
+LRESULT CALLBACK CBTProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
 	return CallNextHookEx(0, nCode, wParam, lParam);
 }

@@ -1,4 +1,4 @@
-// Injector.cpp : Defines the entry point for the console application.
+﻿// Injector.cpp : Defines the entry point for the console application.
 //
 
 #include "stdafx.h"
@@ -10,31 +10,31 @@
 #include <tlhelp32.h>
 #include <set>
 
-static void wait_keypress(const char *msg)
+static void wait_keypress(const char* msg)
 {
 	puts(msg);
 	getchar();
 }
 
-static void wait_exit(int code=0, char *msg="\nPress enter to close...\n")
+static void wait_exit(int code = 0, char* msg = "\nPress enter to close...\n")
 {
 	wait_keypress(msg);
 	exit(code);
 }
 
-static void exit_usage(const char *msg)
+static void exit_usage(const char* msg)
 {
 	//                                                          80 column limit --------> \n
 	printf("The Loader is not configured correctly. Please copy the 3DMigoto d3d11.dll\n"
-	       "and d3dx.ini into this directory, then edit the d3dx.ini's [Loader] section\n"
-	       "to set the target executable and 3DMigoto module name.\n"
-	       "\n"
-	       "%s", msg);
+		"and d3dx.ini into this directory, then edit the d3dx.ini's [Loader] section\n"
+		"to set the target executable and 3DMigoto module name.\n"
+		"\n"
+		"%s", msg);
 
 	wait_exit(EXIT_FAILURE);
 }
 
-static bool check_file_description(const char *buf, const char *module_path)
+static bool check_file_description(const char* buf, const char* module_path)
 {
 	// https://docs.microsoft.com/en-gb/windows/desktop/api/winver/nf-winver-verqueryvaluea
 	struct LANGANDCODEPAGE {
@@ -42,7 +42,7 @@ static bool check_file_description(const char *buf, const char *module_path)
 		WORD wCodePage;
 	} *translate_query;
 	char id[50];
-	char *file_description = "";
+	char* file_description = "";
 	unsigned int query_size, file_desc_size;
 	HRESULT hr;
 	unsigned i;
@@ -57,8 +57,8 @@ static bool check_file_description(const char *buf, const char *module_path)
 	// code if we do:
 	for (i = 0; i < (query_size / sizeof(struct LANGANDCODEPAGE)); i++) {
 		hr = _snprintf_s(id, 50, 50, "\\StringFileInfo\\%04x%04x\\FileDescription",
-				translate_query[i].wLanguage,
-				translate_query[i].wCodePage);
+			translate_query[i].wLanguage,
+			translate_query[i].wCodePage);
 		if (FAILED(hr))
 			wait_exit(EXIT_FAILURE, "3DMigoto file description query bugged\n");
 
@@ -77,12 +77,12 @@ static bool check_file_description(const char *buf, const char *module_path)
 	return false;
 }
 
-static void check_3dmigoto_version(const char *module_path, const char *ini_section)
+static void check_3dmigoto_version(const char* module_path, const char* ini_section)
 {
-	VS_FIXEDFILEINFO *query = NULL;
+	VS_FIXEDFILEINFO* query = NULL;
 	DWORD pointless_handle = 0;
 	unsigned int size;
-	char *buf;
+	char* buf;
 
 	size = GetFileVersionInfoSizeA(module_path, &pointless_handle);
 	if (!size)
@@ -94,32 +94,32 @@ static void check_3dmigoto_version(const char *module_path, const char *ini_sect
 		wait_exit(EXIT_FAILURE, "3DMigoto version info check failed\n");
 
 	if (!check_file_description(buf, module_path)) {
-		printf("ERROR: The requested module \"%s\" is not 3DMigoto\n"
-		       "Please ensure that [Loader] \"module\" is set correctly and the DLL is in place.", module_path);
-		wait_exit(EXIT_FAILURE);
+		printf("WARN: The requested module \"%s\" is not 3DMigoto\n"
+			"Please ensure that [Loader] \"module\" is set correctly and the DLL is in place.", module_path);
+		//wait_exit(EXIT_FAILURE);
 	}
 
 	if (!VerQueryValueA(buf, "\\", (void**)&query, &size))
 		wait_exit(EXIT_FAILURE, "3DMigoto version query check failed\n");
 
 	printf("3DMigoto Version %d.%d.%d\n",
-			query->dwProductVersionMS >> 16,
-			query->dwProductVersionMS & 0xffff,
-			query->dwProductVersionLS >> 16);
+		query->dwProductVersionMS >> 16,
+		query->dwProductVersionMS & 0xffff,
+		query->dwProductVersionLS >> 16);
 
-	if (query->dwProductVersionMS <  0x00010003 ||
-	    query->dwProductVersionMS == 0x00010003 && query->dwProductVersionLS < 0x000f0000) {
-		wait_exit(EXIT_FAILURE, "This version of 3DMigoto is too old to be safely loaded - please use 1.3.15 or later\n");
+	if (query->dwProductVersionMS < 0x00010003 ||
+		query->dwProductVersionMS == 0x00010003 && query->dwProductVersionLS < 0x000f0000) {
+		//wait_exit(EXIT_FAILURE, "This version of 3DMigoto is too old to be safely loaded - please use 1.3.15 or later\n");
 	}
 
-	delete [] buf;
+	delete[] buf;
 }
 
-static bool verify_injection(PROCESSENTRY32 *pe, const wchar_t *module, bool log_name)
+static bool verify_injection(PROCESSENTRY32* pe, const wchar_t* module, bool log_name)
 {
 	HANDLE snapshot;
 	MODULEENTRY32 me;
-	const wchar_t *basename = wcsrchr(module, '\\');
+	const wchar_t* basename = wcsrchr(module, '\\');
 	bool rc = false;
 	static std::set<DWORD> pids;
 	wchar_t exe_path[MAX_PATH], mod_path[MAX_PATH];
@@ -134,14 +134,14 @@ static bool verify_injection(PROCESSENTRY32 *pe, const wchar_t *module, bool log
 	} while (snapshot == INVALID_HANDLE_VALUE && GetLastError() == ERROR_BAD_LENGTH);
 	if (snapshot == INVALID_HANDLE_VALUE) {
 		printf("%S (%d): Unable to verify if 3DMigoto was successfully loaded: %d\n",
-				pe->szExeFile, pe->th32ProcessID, GetLastError());
+			pe->szExeFile, pe->th32ProcessID, GetLastError());
 		return false;
 	}
 
 	me.dwSize = sizeof(MODULEENTRY32);
 	if (!Module32First(snapshot, &me)) {
 		printf("%S (%d): Unable to verify if 3DMigoto was successfully loaded: %d\n",
-				pe->szExeFile, pe->th32ProcessID, GetLastError());
+			pe->szExeFile, pe->th32ProcessID, GetLastError());
 		goto out_close;
 	}
 
@@ -161,16 +161,17 @@ static bool verify_injection(PROCESSENTRY32 *pe, const wchar_t *module, bool log
 				pids.insert(pe->th32ProcessID);
 			}
 			rc = true;
-		} else {
+		}
+		else {
 			wcscpy_s(mod_path, MAX_PATH, me.szExePath);
 			wcsrchr(exe_path, L'\\')[1] = '\0';
 			wcsrchr(mod_path, L'\\')[1] = '\0';
 			if (!_wcsicmp(exe_path, mod_path)) {
 				printf("\n\n\n"
-				       "WARNING: Found a second copy of 3DMigoto loaded from the game directory:\n"
-				       "%S\n"
-				       "This may crash - please remove the copy in the game directory and try again\n\n\n",
-				       me.szExePath);
+					"WARNING: Found a second copy of 3DMigoto loaded from the game directory:\n"
+					"%S\n"
+					"This may crash - please remove the copy in the game directory and try again\n\n\n",
+					me.szExePath);
 				wait_exit(EXIT_FAILURE);
 			}
 		}
@@ -181,13 +182,13 @@ out_close:
 	return rc;
 }
 
-static bool check_for_running_target(wchar_t *target, const wchar_t *module)
+static bool check_for_running_target(wchar_t* target, const wchar_t* module)
 {
 	// https://docs.microsoft.com/en-us/windows/desktop/ToolHelp/taking-a-snapshot-and-viewing-processes
 	HANDLE snapshot;
 	PROCESSENTRY32 pe;
 	bool rc = false;
-	wchar_t *basename = wcsrchr(target, '\\');
+	wchar_t* basename = wcsrchr(target, '\\');
 	static std::set<DWORD> pids;
 
 	if (basename)
@@ -220,7 +221,7 @@ out_close:
 	return rc;
 }
 
-static void wait_for_target(const char *target_a, const wchar_t *module_path, bool wait, int delay, bool launched)
+static void wait_for_target(const char* target_a, const wchar_t* module_path, bool wait, int delay, bool launched)
 {
 	wchar_t target_w[MAX_PATH];
 
@@ -232,10 +233,11 @@ static void wait_for_target(const char *target_a, const wchar_t *module_path, bo
 			break;
 		Sleep(1000);
 
-		if (launched && seconds == 3) {
+		if (launched && seconds == 10) {
 			printf("\nStill waiting for the game to start...\n"
-			       "If the game does not launch automatically, leave this window open and run it manually.\n"
-			       "You can also adjust/remove the [Loader] launch= option in the d3dx.ini as desired.\n\n");
+				"If the game does not launch automatically, leave this window open and run it manually.\n"
+				"You can also adjust/remove the [Loader] launch= option in the d3dx.ini as desired.\n\n");
+			break; // d3dx.ini中设置了launch后，十秒后自动关闭loader
 		}
 	}
 
@@ -281,10 +283,10 @@ static void elevate_privileges()
 	wait_exit(EXIT_FAILURE);
 }
 
-wchar_t* deduce_working_directory(wchar_t *setting, wchar_t dir[MAX_PATH])
+wchar_t* deduce_working_directory(wchar_t* setting, wchar_t dir[MAX_PATH])
 {
 	DWORD ret;
-	wchar_t *file_part = NULL;
+	wchar_t* file_part = NULL;
 
 	ret = GetFullPathName(setting, MAX_PATH, dir, &file_part);
 	if (!ret || ret >= MAX_PATH)
@@ -304,10 +306,10 @@ wchar_t* deduce_working_directory(wchar_t *setting, wchar_t dir[MAX_PATH])
 
 int main()
 {
-	char *buf, target[MAX_PATH], setting[MAX_PATH], module_path[MAX_PATH];
-	wchar_t setting_w[MAX_PATH], working_dir[MAX_PATH], *working_dir_p = NULL;
+	char* buf, target[MAX_PATH], setting[MAX_PATH], module_path[MAX_PATH];
+	wchar_t setting_w[MAX_PATH], working_dir[MAX_PATH], * working_dir_p = NULL;
 	DWORD filesize, readsize;
-	const char *ini_section;
+	const char* ini_section;
 	wchar_t module_full_path[MAX_PATH];
 	int rc = EXIT_FAILURE;
 	HANDLE ini_file;
@@ -367,7 +369,15 @@ int main()
 
 	module = LoadLibraryA(module_path);
 	if (!module) {
-		printf("Unable to load 3DMigoto \"%s\"\n", module_path);
+		DWORD err = GetLastError();
+		LPSTR msgBuf = nullptr;
+		FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+			NULL, err, 0, (LPSTR)&msgBuf, 0, NULL);
+
+		printf("Unable to load 3DMigoto \"%s\": error %lu (%s)\n",
+			module_path, err, msgBuf ? msgBuf : "unknown");
+
+		LocalFree(msgBuf);
 		wait_exit(EXIT_FAILURE);
 	}
 
@@ -378,6 +388,7 @@ int main()
 		fn = GetProcAddress(module, setting);
 	else
 		fn = GetProcAddress(module, "CBTProc");
+
 	if (!fn) {
 		wait_exit(EXIT_FAILURE, "Module does not support injection method\n"
 			"Make sure this is a recent 3DMigoto d3d11.dll\n");
@@ -401,16 +412,17 @@ int main()
 		working_dir_p = deduce_working_directory(setting_w, working_dir);
 
 		ShellExecute(NULL, NULL, setting_w, NULL, working_dir_p, SW_SHOWNORMAL);
-	} else {
+	}
+	else {
 		printf("3DMigoto ready - Now run the game.\n");
 	}
 
 	wait_for_target(target, module_full_path,
-			find_ini_bool_lite(ini_section, "wait_for_target", true),
-			find_ini_int_lite(ini_section, "delay", 0), launch);
+		find_ini_bool_lite(ini_section, "wait_for_target", true),
+		find_ini_int_lite(ini_section, "delay", 0), launch);
 
 	UnhookWindowsHookEx(hook);
-	delete [] buf;
+	delete[] buf;
 
 	return rc;
 }

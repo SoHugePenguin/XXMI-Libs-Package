@@ -334,7 +334,7 @@ void KeyOverrideCycle::ParseIniSection(LPCWSTR section)
 	}
 }
 
-bool Override::MatchesCurrent(HackerDevice *device)
+bool Override::MatchesCurrent(PenguinDV *device)
 {
 	OverrideParams::iterator i;
 	OverrideVars::iterator j;
@@ -365,7 +365,7 @@ bool Override::MatchesCurrent(HackerDevice *device)
 	return true;
 }
 
-void KeyOverrideCycle::UpdateCurrent(HackerDevice *device)
+void KeyOverrideCycle::UpdateCurrent(PenguinDV *device)
 {
 	// If everything in the current preset matches reality or the current
 	// transition target we are good:
@@ -383,7 +383,7 @@ void KeyOverrideCycle::UpdateCurrent(HackerDevice *device)
 	}
 }
 
-void KeyOverrideCycle::DownEvent(HackerDevice *device)
+void KeyOverrideCycle::DownEvent(PenguinDV *device)
 {
 	if (presets.empty())
 		return;
@@ -403,7 +403,7 @@ void KeyOverrideCycle::DownEvent(HackerDevice *device)
 	presets[current].Activate(device, false);
 }
 
-void KeyOverrideCycle::BackEvent(HackerDevice *device)
+void KeyOverrideCycle::BackEvent(PenguinDV *device)
 {
 	if (presets.empty())
 		return;
@@ -423,7 +423,7 @@ void KeyOverrideCycle::BackEvent(HackerDevice *device)
 	presets[current].Activate(device, false);
 }
 
-void KeyOverrideCycleBack::DownEvent(HackerDevice *device)
+void KeyOverrideCycleBack::DownEvent(PenguinDV *device)
 {
 	return cycle->BackEvent(device);
 }
@@ -433,7 +433,7 @@ void KeyOverrideCycleBack::DownEvent(HackerDevice *device)
 // This map/unmap code also requires that the texture be created with the D3D11_USAGE_DYNAMIC flag set.
 // This map operation can also cause the GPU to stall, so this should be done as rarely as possible.
 
-static void UpdateIniParams(HackerDevice* wrapper)
+static void UpdateIniParams(PenguinDV* wrapper)
 {
 	ID3D11DeviceContext1* realContext = wrapper->GetPassThroughOrigContext1();
 	D3D11_MAPPED_SUBRESOURCE mappedResource;
@@ -448,7 +448,7 @@ static void UpdateIniParams(HackerDevice* wrapper)
 
 std::vector<CommandList*> pending_post_command_lists;
 
-void Override::Activate(HackerDevice *device, bool override_has_deactivate_condition)
+void Override::Activate(PenguinDV *device, bool override_has_deactivate_condition)
 {
 	if (is_conditional && condition.evaluate(NULL, device) == 0) {
 		LogInfo("Skipping override activation: condition not met\n");
@@ -468,7 +468,7 @@ void Override::Activate(HackerDevice *device, bool override_has_deactivate_condi
 			transition,
 			transition_type);
 
-	RunCommandList(device, device->GetHackerContext(), &activate_command_list, NULL, false);
+	RunCommandList(device, device->GetPenguinDC(), &activate_command_list, NULL, false);
 	if (!override_has_deactivate_condition) {
 		// type=activate or type=cycle that don't have an explicit deactivate
 		// We run their post lists after the upcoming UpdateTransitions() so
@@ -477,7 +477,7 @@ void Override::Activate(HackerDevice *device, bool override_has_deactivate_condi
 	}
 }
 
-void Override::Deactivate(HackerDevice *device)
+void Override::Deactivate(PenguinDV *device)
 {
 	if (!active) {
 		LogInfo("Skipping override deactivation: not active\n");
@@ -495,10 +495,10 @@ void Override::Deactivate(HackerDevice *device)
 			release_transition,
 			release_transition_type);
 
-	RunCommandList(device, device->GetHackerContext(), &deactivate_command_list, NULL, true);
+	RunCommandList(device, device->GetPenguinDC(), &deactivate_command_list, NULL, true);
 }
 
-void Override::Toggle(HackerDevice *device)
+void Override::Toggle(PenguinDV *device)
 {
 	if (is_conditional && condition.evaluate(NULL, device) == 0) {
 		LogInfo("Skipping toggle override: condition not met\n");
@@ -510,7 +510,7 @@ void Override::Toggle(HackerDevice *device)
 	return Activate(device, true);
 }
 
-void KeyOverride::DownEvent(HackerDevice *device)
+void KeyOverride::DownEvent(PenguinDV *device)
 {
 	if (type == KeyOverrideType::TOGGLE)
 		return Toggle(device);
@@ -521,7 +521,7 @@ void KeyOverride::DownEvent(HackerDevice *device)
 	return Activate(device, false);
 }
 
-void KeyOverride::UpEvent(HackerDevice *device)
+void KeyOverride::UpEvent(PenguinDV *device)
 {
 	if (type == KeyOverrideType::HOLD)
 		return Deactivate(device);
@@ -545,7 +545,7 @@ void PresetOverride::Exclude()
 
 // Called on present to update the activation status. If the preset was
 // triggered this frame it will remain active, otherwise it will deactivate.
-void PresetOverride::Update(HackerDevice *wrapper)
+void PresetOverride::Update(PenguinDV *wrapper)
 {
 	if (!active && triggered && !excluded)
 		Override::Activate(wrapper, true);
@@ -582,7 +582,7 @@ static void _ScheduleTransition(struct OverrideTransitionParam *transition,
 	transition->transition_type = transition_type;
 }
 
-void OverrideTransition::ScheduleTransition(HackerDevice *wrapper,
+void OverrideTransition::ScheduleTransition(PenguinDV *wrapper,
 		OverrideParams *targets,
 		OverrideVars *var_targets,
 		int time, TransitionType transition_type)
@@ -612,7 +612,7 @@ void OverrideTransition::ScheduleTransition(HackerDevice *wrapper,
 	LogInfo("\n");
 }
 
-void OverrideTransition::UpdatePresets(HackerDevice *wrapper)
+void OverrideTransition::UpdatePresets(PenguinDV *wrapper)
 {
 	PresetOverrideMap::iterator i;
 
@@ -650,7 +650,7 @@ static float _UpdateTransition(struct OverrideTransitionParam *transition, ULONG
 	return percent;
 }
 
-void OverrideTransition::UpdateTransitions(HackerDevice *wrapper)
+void OverrideTransition::UpdateTransitions(PenguinDV *wrapper)
 {
 	std::map<OverrideParam, OverrideTransitionParam>::iterator i;
 	std::map<CommandListVariable*, OverrideTransitionParam>::iterator j;
@@ -694,7 +694,7 @@ void OverrideTransition::UpdateTransitions(HackerDevice *wrapper)
 	// Run any post command lists from type=activate / cycle now so that
 	// they can see the first frame of the updated value:
 	for (auto i : pending_post_command_lists)
-		RunCommandList(wrapper, wrapper->GetHackerContext(), i, NULL, true);
+		RunCommandList(wrapper, wrapper->GetPenguinDC(), i, NULL, true);
 	pending_post_command_lists.clear();
 }
 
@@ -720,7 +720,7 @@ float OverrideGlobalSaveParam::Reset()
 	return ret;
 }
 
-void OverrideGlobalSave::Reset(HackerDevice* wrapper)
+void OverrideGlobalSave::Reset(PenguinDV* wrapper)
 {
 	float val;
 
@@ -746,7 +746,7 @@ void OverrideGlobalSaveParam::Save(float val)
 // intermediate transition value from being saved and restored later (e.g. if
 // rapidly pressing RMB with a release_transition set).
 
-void OverrideGlobalSave::Save(HackerDevice *wrapper, Override *preset)
+void OverrideGlobalSave::Save(PenguinDV *wrapper, Override *preset)
 {
 	OverrideParams::iterator i;
 	OverrideVars::iterator j;

@@ -12,10 +12,11 @@
 #include "Effects.h"
 #include "VertexTypes.h"
 
-#include "HackerDevice.h"
-#include "HackerContext.h"
+#include "PenguinDV.h"
+#include "PenguinDC.h"
 
-class HackerSwapChain;
+// HackerSwapChain
+class PenguinSC;
 
 enum LogLevel {
 	LOG_DIRE,
@@ -41,8 +42,8 @@ private:
 	IDXGISwapChain* mOrigSwapChain;
 	ID3D11Device* mOrigDevice;
 	ID3D11DeviceContext* mOrigContext;
-	HackerDevice* mHackerDevice;
-	HackerContext* mHackerContext;
+	PenguinDV* mPenguinDV;
+	PenguinDC* mPenguinDC;
 
 	DirectX::XMUINT2 mResolution;
 	std::unique_ptr<DirectX::SpriteBatch> mSpriteBatch;
@@ -111,7 +112,7 @@ public:
 	std::unique_ptr<DirectX::SpriteFont> mFontNotifications;
 	std::unique_ptr<DirectX::SpriteFont> mFontProfiling;
 
-	Overlay(HackerDevice *pDevice, HackerContext *pContext, IDXGISwapChain *pSwapChain);
+	Overlay(PenguinDV *pDevice, PenguinDC *pContext, IDXGISwapChain *pSwapChain);
 	~Overlay();
 
 	void DrawOverlay(void);

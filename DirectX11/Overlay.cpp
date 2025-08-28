@@ -1,4 +1,4 @@
-// This Overlay class is to encapsulate all the on-screen drawing code,
+﻿// This Overlay class is to encapsulate all the on-screen drawing code,
 // including creating and using the DirectXTK code.
 
 #include "Overlay.h"
@@ -90,7 +90,7 @@ Overlay::Overlay(PenguinDV *pDevice, PenguinDC *pContext, IDXGISwapChain *pSwapC
 
 	// Must use trampoline context to prevent 3DMigoto hunting its own overlay:
 	mOrigDevice = mPenguinDV->GetPassThroughOrigDevice1();
-	mOrigContext = pContext->GetPassThroughOrigContext1();
+	mOrigContext = mPenguinDC->GetPassThroughOrigContext1();
 
 	// We are actively using the Device and Context, so we need to make
 	// sure they do not get Released without us.  This happened in FFXIV.

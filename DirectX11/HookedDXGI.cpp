@@ -22,6 +22,8 @@
 #include "util.h"
 #include "D3D11Wrapper.h"
 
+#include "IniHandler.h"
+
 
 // This class is for a different approach than the wrapping of the system objects
 // like we do with ID3D11Device for example.  When we wrap a COM object like that,
@@ -54,6 +56,7 @@
 // enable hunting or replace shaders or anything, and the only noteworthy call
 // from the game we will be intercepting is Present().
 #include <d3d11on12.h>
+#include "PenguinHackerDXGI.h"
 
 static PenguinDV* prepare_devices_for_dx12_warning(IUnknown* unknown_device)
 {
@@ -431,6 +434,60 @@ static void override_factory2_swap_chain(
 	// FIXME: Implement upscaling
 }
 
+
+
+// 定义 Present 原型
+typedef HRESULT(__stdcall* PresentFn)(IDXGISwapChain* This, UINT SyncInterval, UINT Flags);
+
+// 全局保存原始函数指针
+PresentFn g_oPresent = nullptr;
+PenguinDV* g_pPenguinDV = nullptr;
+PenguinDC* g_pPenguinDC = nullptr;
+IDXGISwapChain1* g_pSwapChain = nullptr;
+
+HRESULT __stdcall hkPresent(IDXGISwapChain* This, UINT SyncInterval, UINT Flags)
+{
+	if (!(Flags & DXGI_PRESENT_TEST)) {
+		// --- pre-present ---
+		PenguinTools::DoFrameActions();
+
+		if (PenguinTools::sOverlay && !G->suppress_overlay) {
+			PenguinTools::sOverlay->DrawOverlay();
+		}
+		G->suppress_overlay = false;
+	}
+
+	get_tls()->hooking_quirk_protection = true;
+	HRESULT hr = g_oPresent(This, SyncInterval, Flags);
+	get_tls()->hooking_quirk_protection = false;
+
+	return hr;
+}
+
+
+// 初始化 Hook
+void HookSwapChain(IDXGISwapChain* pSwapChain)
+{
+	void** pVTable = *(void***)pSwapChain;
+
+	// Present 在 vtable 第 8 个位置
+	g_oPresent = (PresentFn)pVTable[8];
+
+	DWORD oldProtect;
+	VirtualProtect(&pVTable[8], sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtect);
+	pVTable[8] = (void*)&hkPresent;
+	VirtualProtect(&pVTable[8], sizeof(void*), oldProtect, &oldProtect);
+
+    PenguinTools::Init(pSwapChain, g_pPenguinDV, g_pPenguinDV->GetPenguinDC());
+
+	LogToWindow("[Hook] Present 已替换\n");
+}
+
+
+
+
+
+
 void wrap_swap_chain(PenguinDV* PenguinDV,
 	IDXGISwapChain** ppSwapChain,
 	DXGI_SWAP_CHAIN_DESC* overrideSwapChainDesc,
@@ -495,27 +552,20 @@ static void wrap_factory2_swap_chain(
 	_In_ PenguinDV* PenguinDV,
 	_Out_ IDXGISwapChain1** ppSwapChain)
 {
-	LogToWindow("wrap_factory2_swap_chain 22222222222222222222222222222222222");
-	PenguinDC* pgdc = NULL;
-	PenguinSC* pgsc = NULL;
-	IDXGISwapChain1* origSwapChain = NULL;
+	LogToWindow("wrap_factory2_swap_chain called");
 
-	if (!PenguinDV)
+	if (!PenguinDV || !ppSwapChain || !*ppSwapChain)
 		return;
 
-	origSwapChain = *ppSwapChain;
-	pgdc = PenguinDV->GetPenguinDC();
+	g_pPenguinDV = PenguinDV;
+	g_pPenguinDC = PenguinDV->GetPenguinDC();
+	g_pSwapChain = *ppSwapChain;
 
-	// TODO: Upscaling
-	pgsc = new PenguinSC(origSwapChain, PenguinDV, pgdc);
+	// 不再替换为 PenguinSC，直接 Hook Present
+	HookSwapChain(*ppSwapChain);
 
-	// When creating a new swapchain, we can assume this is the game creating
-	// the most important object, and return the wrapped swapchain to the game
-	// so it will call our Present.
-	// 核心，改变了正常的运行地址，改成自己的了
-	*ppSwapChain = pgsc;
-
-	LogToWindow("-> PenguinSC = %p wrapper of ppSwapChain = %p\n\n", pgsc, origSwapChain);
+	LogToWindow("Saved PenguinDV=%p, PenguinDC=%p, SwapChain=%p\n",
+		g_pPenguinDV, g_pPenguinDC, g_pSwapChain);
 }
 
 
@@ -1122,148 +1172,3 @@ HRESULT __stdcall Hooked_CreateDXGIFactory2(UINT Flags, REFIID riid, void** ppFa
 	LogToWindow("  CreateDXGIFactory2 returned factory = %p, result = %x\n", *ppFactory2, hr);
 	return hr;
 }
-
-// -----------------------------------------------------------------------------
-
-// Some partly obsolete comments, but still maybe worthwhile as thoughts on DXGI.
-
-// The hooks need to be installed late, and cannot be installed during DLLMain, because
-// they need to be installed in the COM object vtable itself, and the order cannot be
-// defined that early.  Because the documentation says it's not viable at DLLMain time,
-// we'll install these hooks at LoadRealD3D11() time, essentially the first call of D3D11.
-// 
-// The piece we care about in DXGI is the swap chain, and we don't otherwise have a
-// good way to access it.  It can be created directly via DXGI, and not through 
-// CreateDeviceAndSwapChain.
-//
-// Not certain, but it seems likely that we only need to hook a given instance of the
-// calls we want, because they are not true objects with attached vtables, they have
-// a non-standard vtable/indexing system, and the main differentiator is the object
-// passed in as 'this'.  
-//
-// After much experimentation and study, it seems clear that we should use the in-proc
-// version of Deviare. I tried to see if Deviare2 would be a match, but they have a 
-// funny event callback mechanism that requires an ATL object connection, and is not
-// really suited for same-process operations.  It's really built with separate
-// processes in mind.
-
-// For this object, we want to use the CINTERFACE, not the C++ interface.
-// The reason is that it allows us easy access to the COM object vtable, which
-// we need to hook in order to override the functions.  Once we include dxgi.h
-// it will be defined with C headers instead.
-//
-// This is a little odd, but it's the way that Detours hooks COM objects, and
-// thus it seems superior to the Nektra approach of groping the vtable directly
-// using constants and void* pointers.
-// 
-// This is only used for .cpp file here, not the .h file, because otherwise other
-// units get compiled with this CINTERFACE, which wrecks their calling out.
-
-
-// -----------------------------------------------------------------------------
-// Functionality removed during refactoring.
-// 
-// These are here, because our HackerDXGI is only HackerSwapChain now.
-// If we want these calls, we'll need to add further hooks here.
-
-
-//STDMETHODIMP HackerDXGIFactory::MakeWindowAssociation(THIS_
-//	HWND WindowHandle,
-//	UINT Flags)
-//{
-//	if (LogFile)
-//	{
-//		LogToWindow("HackerDXGIFactory::MakeWindowAssociation(%s@%p) called with WindowHandle = %p, Flags = %x\n", type_name(this), this, WindowHandle, Flags);
-//		if (Flags) LogInfoNoNL("  Flags =");
-//		if (Flags & DXGI_MWA_NO_WINDOW_CHANGES) LogInfoNoNL(" DXGI_MWA_NO_WINDOW_CHANGES(no monitoring)");
-//		if (Flags & DXGI_MWA_NO_ALT_ENTER) LogInfoNoNL(" DXGI_MWA_NO_ALT_ENTER");
-//		if (Flags & DXGI_MWA_NO_PRINT_SCREEN) LogInfoNoNL(" DXGI_MWA_NO_PRINT_SCREEN");
-//		if (Flags) LogToWindow("\n");
-//	}
-//
-//	if (G->SCREEN_ALLOW_COMMANDS && Flags)
-//	{
-//		LogToWindow("  overriding Flags to allow all window commands\n");
-//
-//		Flags = 0;
-//	}
-//	HRESULT hr = mOrigFactory->MakeWindowAssociation(WindowHandle, Flags);
-//	LogToWindow("  returns result = %x\n", hr);
-//
-//	return hr;
-//}
-//
-//
-
-//
-//static bool FilterRate(int rate)
-//{
-//	if (!G->FILTER_REFRESH[0]) return false;
-//	int i = 0;
-//	while (G->FILTER_REFRESH[i] && G->FILTER_REFRESH[i] != rate)
-//		++i;
-//	return G->FILTER_REFRESH[i] == 0;
-//}
-//
-//STDMETHODIMP HackerDXGIOutput::GetDisplayModeList(THIS_
-//	/* [in] */ DXGI_FORMAT EnumFormat,
-//	/* [in] */ UINT Flags,
-//	/* [annotation][out][in] */
-//	__inout  UINT *pNumModes,
-//	/* [annotation][out] */
-//	__out_ecount_part_opt(*pNumModes, *pNumModes)  DXGI_MODE_DESC *pDesc)
-//{
-//	LogToWindow("HackerDXGIOutput::GetDisplayModeList(%s@%p) called\n", type_name(this), this);
-//
-//	HRESULT ret = mOrigOutput->GetDisplayModeList(EnumFormat, Flags, pNumModes, pDesc);
-//	if (ret == S_OK && pDesc)
-//	{
-//		for (UINT j = 0; j < *pNumModes; ++j)
-//		{
-//			int rate = pDesc[j].RefreshRate.Numerator / pDesc[j].RefreshRate.Denominator;
-//			if (FilterRate(rate))
-//			{
-//				LogToWindow("  Skipping mode: width=%d, height=%d, refresh rate=%f\n", pDesc[j].Width, pDesc[j].Height,
-//					(float)pDesc[j].RefreshRate.Numerator / (float)pDesc[j].RefreshRate.Denominator);
-//				// ToDo: Does this work?  I have no idea why setting width and height to 8 would matter.
-//				pDesc[j].Width = 8; pDesc[j].Height = 8;
-//			}
-//			else
-//			{
-//				LogToWindow("  Mode detected: width=%d, height=%d, refresh rate=%f\n", pDesc[j].Width, pDesc[j].Height,
-//					(float)pDesc[j].RefreshRate.Numerator / (float)pDesc[j].RefreshRate.Denominator);
-//			}
-//		}
-//	}
-//
-//	return ret;
-//}
-//
-//STDMETHODIMP HackerDXGIOutput::FindClosestMatchingMode(THIS_
-//	/* [annotation][in] */
-//	__in  const DXGI_MODE_DESC *pModeToMatch,
-//	/* [annotation][out] */
-//	__out  DXGI_MODE_DESC *pClosestMatch,
-//	/* [annotation][in] */
-//	__in_opt  IUnknown *pConcernedDevice)
-//{
-//	if (pModeToMatch) LogToWindow("HackerDXGIOutput::FindClosestMatchingMode(%s@%p) called: width=%d, height=%d, refresh rate=%f\n", type_name(this), this,
-//		pModeToMatch->Width, pModeToMatch->Height, (float)pModeToMatch->RefreshRate.Numerator / (float)pModeToMatch->RefreshRate.Denominator);
-//
-//	HRESULT hr = mOrigOutput->FindClosestMatchingMode(pModeToMatch, pClosestMatch, pConcernedDevice);
-//
-//	if (pClosestMatch && G->SCREEN_REFRESH >= 0)
-//	{
-//		pClosestMatch->RefreshRate.Numerator = G->SCREEN_REFRESH;
-//		pClosestMatch->RefreshRate.Denominator = 1;
-//	}
-//	if (pClosestMatch && G->SCREEN_WIDTH >= 0) pClosestMatch->Width = G->SCREEN_WIDTH;
-//	if (pClosestMatch && G->SCREEN_HEIGHT >= 0) pClosestMatch->Height = G->SCREEN_HEIGHT;
-//	if (pClosestMatch) LogToWindow("  returning width=%d, height=%d, refresh rate=%f\n",
-//		pClosestMatch->Width, pClosestMatch->Height, (float)pClosestMatch->RefreshRate.Numerator / (float)pClosestMatch->RefreshRate.Denominator);
-//
-//	LogToWindow("  returns hr=%x\n", hr);
-//	return hr;
-//}
-//
-//

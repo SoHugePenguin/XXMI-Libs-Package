@@ -2549,10 +2549,18 @@ STDMETHODIMP PenguinDV::CreatePixelShader(THIS_
 	/* [annotation] */
 	__out_opt  ID3D11PixelShader **ppPixelShader)
 {
-	LogInfo("PenguinDV::CreatePixelShader called with BytecodeLength = %Iu, handle = %p, ClassLinkage = %p\n", BytecodeLength, pShaderBytecode, pClassLinkage);
+	//if (!pShaderBytecode || !ppPixelShader) {
+	//	return mOrigDevice1->CreatePixelShader(
+	//		pShaderBytecode, BytecodeLength, pClassLinkage, ppPixelShader);
+	//}
 
-	return CreateShader<ID3D11PixelShader, &ID3D11Device::CreatePixelShader>
-			(pShaderBytecode, BytecodeLength, pClassLinkage, ppPixelShader, L"ps");
+	//UINT64 hash = hash_shader(pShaderBytecode, BytecodeLength);
+
+	//LogToWindow(">>> PixelShader Hash = %016I64x, Len=%Iu\n",
+	//	hash, BytecodeLength);
+
+	return CreateShader<ID3D11PixelShader, &ID3D11Device::CreatePixelShader>(
+		pShaderBytecode, BytecodeLength, pClassLinkage, ppPixelShader, L"ps");
 
 //return mOrigDevice1->CreatePixelShader(
 //        pShaderBytecode,

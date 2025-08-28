@@ -139,9 +139,9 @@ void InstallSetWindowPosHook()
 
 PenguinSC::PenguinSC(IDXGISwapChain1 *pSwapChain, PenguinDV *pDevice, PenguinDC *pContext)
 {
-	mOrigSwapChain1 = pSwapChain;
-	mPenguinDV = pDevice;
-	mPenguinDC = pContext;
+    mOrigSwapChain1 = pSwapChain;
+    mPenguinDV = pDevice;
+    mPenguinDC = pContext;
 
 	// Bump the refcounts on the device and context to make sure they can't
 	// be released as long as the swap chain is alive and we may be
@@ -156,7 +156,7 @@ PenguinSC::PenguinSC(IDXGISwapChain1 *pSwapChain, PenguinDV *pDevice, PenguinDC 
 	// unecessary given we now do so here, but also shouldn't hurt, and is
 	// safer in case we ever change this again and forget about it.
 
-	mPenguinDV->AddRef();
+    mPenguinDV->AddRef();
 	if (mPenguinDC) {
 		mPenguinDC->AddRef();
 	} else {
@@ -165,17 +165,19 @@ PenguinSC::PenguinSC(IDXGISwapChain1 *pSwapChain, PenguinDV *pDevice, PenguinDC 
 		// In the case of hooking, GetImmediateContext will not return
 		// a HackerContext, so we don't use it's return directly, but
 		// rather just use it to make GetHackerContext valid:
-		mPenguinDV->GetImmediateContext(&tmpContext);
+        mPenguinDV->GetImmediateContext(&tmpContext);
 		mPenguinDC = mPenguinDV->GetPenguinDC();
 	}
 
-	mPenguinDV->SetPenguinSC(this);
+    mPenguinDV->SetPenguinSC(this);
 
 	try {
 		// Create Overlay class that will be responsible for drawing any text
 		// info over the game. Using the Hacker Device and Context we gave the game.
+// 显示在游戏屏幕上的Log
 		mOverlay = new Overlay(mPenguinDV, mPenguinDC, mOrigSwapChain1);
-	}
+//        mOverlay = nullptr;
+    }
 	catch (...) {
 		LogInfo("  *** Failed to create Overlay. Exception caught.\n");
 		mOverlay = NULL;
@@ -527,6 +529,8 @@ STDMETHODIMP PenguinSC::GetDevice(
 // -----------------------------------------------------------------------------
 /** IDXGISwapChain **/
 
+
+// 走的这个
 STDMETHODIMP PenguinSC::Present(THIS_
 	/* [in] */ UINT SyncInterval,
 	/* [in] */ UINT Flags)
@@ -534,9 +538,9 @@ STDMETHODIMP PenguinSC::Present(THIS_
 	Profiling::State profiling_state = {0};
 	bool profiling = false;
 
-	LogDebug("PenguinSC::Present(%s@%p) called with\n", type_name(this), this);
-	LogDebug("  SyncInterval = %d\n", SyncInterval);
-	LogDebug("  Flags = %d\n", Flags);
+//	LogToWindow("PenguinSC::Present(%s@%p) called with\n", type_name(this), this);
+//    LogToWindow("  SyncInterval = %d\n", SyncInterval);
+//    LogToWindow("  Flags = %d\n", Flags);
 
 	if (!(Flags & DXGI_PRESENT_TEST)) {
 		// Profiling::mode may change below, so make a copy
@@ -546,7 +550,11 @@ STDMETHODIMP PenguinSC::Present(THIS_
 
 		// Every presented frame, we want to take some CPU time to run our actions,
 		// which enables hunting, and snapshots, and aiming overrides and other inputs
-		RunFrameActions();
+        // 执行快照截取
+        //shader hunting
+        //注入替换
+        //overlay 更新
+//		RunFrameActions();
 
 		if (profiling)
 			Profiling::end(&profiling_state, &Profiling::present_overhead);

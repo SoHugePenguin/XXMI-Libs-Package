@@ -63,6 +63,7 @@
     <ClCompile Include="Override.cpp" />
     <ClCompile Include="PenguinDC.cpp" />
     <ClCompile Include="PenguinDV.cpp" />
+    <ClCompile Include="PenguinHackerDXGIcpp.cpp" />
     <ClCompile Include="profiling.cpp" />
     <ClCompile Include="ResourceHash.cpp" />
     <ClCompile Include="ShaderRegex.cpp" />
@@ -98,6 +99,7 @@
     <ClInclude Include="Override.h" />
     <ClInclude Include="PenguinDC.h" />
     <ClInclude Include="PenguinDV.h" />
+    <ClInclude Include="PenguinHackerDXGI.h" />
     <ClInclude Include="profiling.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="ResourceHash.h" />

@@ -563,7 +563,7 @@ void LoadRealD3D11()
 	}
 	else
 	{
-		// We'll look for this in DLLMainHook to avoid callback to self.		
+        // We'll look for this in DLLMainHook to avoid callback to self.
 		// Must remain all lower case to be matched in DLLMainHook.
 		// We need the system d3d11 in order to find the original proc addresses.
 		// We hook LoadLibraryExW, so we need to use that here.
@@ -868,12 +868,17 @@ static PenguinDV* d3d11_penguin_lol(ID3D11Device** ppDevice, ID3D11DeviceContext
 	PenguinDV* deviceWrap = nullptr;
 	if (origDevice1 != nullptr)
 	{
+        // penguin: 注释后无法进入游戏
 		deviceWrap = new PenguinDV(origDevice1, origContext1);
 
-		if (G->enable_hooks & EnableHooks::DEVICE)
-			deviceWrap->HookDevice();
-		else
-			*ppDevice = deviceWrap;
+		if (G->enable_hooks & EnableHooks::DEVICE) {
+            LogToWindow("[D3D11Wrapper.cpp] HookDevice...]");
+            deviceWrap->HookDevice();
+        }
+		else {
+            LogToWindow("[D3D11Wrapper.cpp] *ppDevice = deviceWrap");
+            *ppDevice = deviceWrap; // penguin: 渲染模型、shader核心
+        }
 		LogToWindow("  PenguinDV %p created to wrap %p\n", deviceWrap, origDevice1);
 
 		// Add the HackerDevice to the DirectX device's private data,
@@ -917,8 +922,8 @@ static PenguinDV* d3d11_penguin_lol(ID3D11Device** ppDevice, ID3D11DeviceContext
 			contextWrap->InitIniParams();
 	}
 
-	//LogToWindow("-> device handle = %p, device wrapper = %p, context handle = %p, context wrapper = %p\n",
-	//	origDevice1, deviceWrap, origContext1, contextWrap);
+	LogToWindow("-> device handle = %p, device wrapper = %p, context handle = %p, context wrapper = %p\n",
+		origDevice1, deviceWrap, origContext1, contextWrap);
 
 	return deviceWrap;
 }
@@ -1052,7 +1057,7 @@ HRESULT WINAPI D3D11CreateDevice(
 
 		return 0;
 		}, nullptr, 0, nullptr);
-	
+
 	return ret;
 }
 

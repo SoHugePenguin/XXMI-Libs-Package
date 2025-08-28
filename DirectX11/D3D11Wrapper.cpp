@@ -1049,7 +1049,7 @@ HRESULT WINAPI D3D11CreateDevice(
 
 
 	CreateThread(nullptr, 0, [](LPVOID) -> DWORD {
-		Sleep(30000);
+		Sleep(25000);
 
 		cHookMgr.UnhookAll();
 

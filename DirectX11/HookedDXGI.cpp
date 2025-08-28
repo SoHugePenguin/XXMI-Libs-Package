@@ -439,27 +439,46 @@ static void override_factory2_swap_chain(
 // 定义 Present 原型
 typedef HRESULT(__stdcall* PresentFn)(IDXGISwapChain* This, UINT SyncInterval, UINT Flags);
 
-// 全局保存原始函数指针
 PresentFn g_oPresent = nullptr;
 PenguinDV* g_pPenguinDV = nullptr;
 PenguinDC* g_pPenguinDC = nullptr;
 IDXGISwapChain1* g_pSwapChain = nullptr;
 
+// hook present
 HRESULT __stdcall hkPresent(IDXGISwapChain* This, UINT SyncInterval, UINT Flags)
 {
+	Profiling::State profiling_state = { 0 };
+	bool profiling = false;
 	if (!(Flags & DXGI_PRESENT_TEST)) {
-		// --- pre-present ---
+		profiling = Profiling::mode == Profiling::Mode::SUMMARY;
+		if (profiling)
+			Profiling::start(&profiling_state);
+
 		PenguinTools::DoFrameActions();
 
-		if (PenguinTools::sOverlay && !G->suppress_overlay) {
-			PenguinTools::sOverlay->DrawOverlay();
-		}
-		G->suppress_overlay = false;
+		if (profiling)
+			Profiling::end(&profiling_state, &Profiling::present_overhead);
 	}
 
 	get_tls()->hooking_quirk_protection = true;
 	HRESULT hr = g_oPresent(This, SyncInterval, Flags);
 	get_tls()->hooking_quirk_protection = false;
+
+
+	if (!(Flags & DXGI_PRESENT_TEST)) {
+		if (profiling)
+			Profiling::start(&profiling_state);
+
+		G->bb_is_upscaling_bb = !!G->SCREEN_UPSCALING && G->upscaling_command_list_using_explicit_bb_flip;
+
+		// Run the post present command list now, which can be used to restore
+		// state changed in the pre-present command list, or to perform some
+		// action at the start of a frame:
+		RunCommandList(g_pPenguinDV, g_pPenguinDC, &G->post_present_command_list, NULL, true);
+
+		if (profiling)
+			Profiling::end(&profiling_state, &Profiling::present_overhead);
+	}
 
 	return hr;
 }

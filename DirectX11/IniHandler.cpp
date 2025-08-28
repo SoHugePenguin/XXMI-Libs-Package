@@ -1,4 +1,4 @@
-#include "IniHandler.h"
+﻿#include "IniHandler.h"
 
 #include <algorithm>
 #include <iterator>
@@ -1420,8 +1420,10 @@ static void RegisterPresetKeyBindings()
 
 		preset->ParseIniSection(id);
 
-		for (wstring key : keys)
+		for (wstring key : keys) {
 			RegisterKeyBinding(L"Key", key.c_str(), preset, 0, delay, release_delay);
+//			LogToWindow("Registered key: %ls", key.c_str());
+		}
 	}
 }
 

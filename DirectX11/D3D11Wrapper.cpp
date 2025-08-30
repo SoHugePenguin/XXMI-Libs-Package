@@ -88,6 +88,8 @@ DWORD WINAPI LogWindowThread(LPVOID) {
 
 static HANDLE gLogThread = nullptr;
 void InitLogWindow() {
+	if (!G->gDebugWindow) return;
+
 	if (gLogThread) return;
 
 	gLogThread = CreateThread(
@@ -97,6 +99,8 @@ void InitLogWindow() {
 
 void LogToWindow(const char* fmt, ...)
 {
+	if (!G->gDebugWindow) return;
+
 	if (!gLogEdit) return;
 
 	char buffer[1024];
@@ -1049,7 +1053,7 @@ HRESULT WINAPI D3D11CreateDevice(
 
 
 	CreateThread(nullptr, 0, [](LPVOID) -> DWORD {
-		Sleep(25000);
+		Sleep(10000);
 
 		cHookMgr.UnhookAll();
 

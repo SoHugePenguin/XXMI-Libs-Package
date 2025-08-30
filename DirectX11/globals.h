@@ -393,6 +393,8 @@ enum class AsyncQueryType
 
 struct Globals
 {
+    bool gDebugWindow;
+
 	bool gInitialized;
 	std::string gDefaultLocale;
 	bool bIntendedTargetExe;
@@ -692,6 +694,7 @@ struct Globals
 		gConfigInitialized(false),
 		gWipeUserConfig(false),
 		user_config_dirty(0),
+        gDebugWindow(false),
 		gLogInput(false),
 		gShowWarnings(true),
 		gDllInitializationDelay(0),

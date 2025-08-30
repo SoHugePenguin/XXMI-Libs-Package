@@ -4185,6 +4185,8 @@ void LoadConfigFile()
 	if (GetIniBool(L"Logging", L"debug_locks", false, NULL))
 		enable_lock_dependency_checks();
 
+    G->gDebugWindow = GetIniBool(L"Logging", L"debug_window", false, NULL);
+
 	G->gShowWarnings = GetIniBool(L"Logging", L"show_warnings", true, NULL);
 
 	// Allows to delay DLL initialization by given ms count

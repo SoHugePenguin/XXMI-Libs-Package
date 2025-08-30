@@ -24,6 +24,8 @@
 
 #include "IniHandler.h"
 
+#include "MinHook/include/MinHook.h"
+
 
 // This class is for a different approach than the wrapping of the system objects
 // like we do with ID3D11Device for example.  When we wrap a COM object like that,
@@ -447,6 +449,7 @@ IDXGISwapChain1* g_pSwapChain = nullptr;
 // hook present
 HRESULT __stdcall hkPresent(IDXGISwapChain* This, UINT SyncInterval, UINT Flags)
 {
+	//PenguinTools::MIHYLOL();
 	Profiling::State profiling_state = { 0 };
 	bool profiling = false;
 	if (!(Flags & DXGI_PRESENT_TEST)) {
@@ -454,7 +457,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* This, UINT SyncInterval, UINT Flags)
 		if (profiling)
 			Profiling::start(&profiling_state);
 
-		PenguinTools::DoFrameActions();
+		PenguinTools::MIHYLOL();
 
 		if (profiling)
 			Profiling::end(&profiling_state, &Profiling::present_overhead);
@@ -485,24 +488,62 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* This, UINT SyncInterval, UINT Flags)
 
 
 // 初始化 Hook
+//void HookSwapChain(IDXGISwapChain* pSwapChain)
+//{
+//	void** pVTable = *(void***)pSwapChain;
+//
+//	// Present 在 vtable 第 8 个位置
+//	g_oPresent = (PresentFn)pVTable[8];
+//
+//	DWORD oldProtect;
+//	VirtualProtect(&pVTable[8], sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtect);
+//	pVTable[8] = (void*)&hkPresent;
+//	VirtualProtect(&pVTable[8], sizeof(void*), oldProtect, &oldProtect);
+//
+//    PenguinTools::Init(pSwapChain, g_pPenguinDV, g_pPenguinDV->GetPenguinDC());
+//
+//	LogToWindow("[Hook] Present 已替换\n");
+//}
 void HookSwapChain(IDXGISwapChain* pSwapChain)
 {
+	LogToWindow("[DEBUG] Enter HookSwapChain\n");
+
+	if (!pSwapChain) {
+		LogToWindow("[DEBUG] pSwapChain == NULL, abort\n");
+		return;
+	}
+
 	void** pVTable = *(void***)pSwapChain;
+	LPVOID pTarget = (LPVOID)pVTable[8];
+	LogToWindow("[DEBUG] vtable[8] = %p\n", pTarget);
 
-	// Present 在 vtable 第 8 个位置
-	g_oPresent = (PresentFn)pVTable[8];
+	static bool inited = false;
+	if (!inited) {
+		MH_STATUS st = MH_Initialize();
+		LogToWindow("[DEBUG] MH_Initialize -> %d\n", st);
+		if (st != MH_OK && st != MH_ERROR_ALREADY_INITIALIZED)
+			return;
+		inited = true;
+	}
 
-	DWORD oldProtect;
-	VirtualProtect(&pVTable[8], sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtect);
-	pVTable[8] = (void*)&hkPresent;
-	VirtualProtect(&pVTable[8], sizeof(void*), oldProtect, &oldProtect);
+	MH_STATUS st1 = MH_CreateHook(
+		pTarget,
+		&hkPresent,
+		reinterpret_cast<void**>(&g_oPresent)
+	);
+	LogToWindow("[DEBUG] MH_CreateHook -> %d\n", st1);
 
-    PenguinTools::Init(pSwapChain, g_pPenguinDV, g_pPenguinDV->GetPenguinDC());
+	MH_STATUS st2 = MH_EnableHook(pTarget);
+	LogToWindow("[DEBUG] MH_EnableHook -> %d\n", st2);
 
-	LogToWindow("[Hook] Present 已替换\n");
+	if (st1 != MH_OK || st2 != MH_OK) {
+		LogToWindow("[DEBUG] Hook setup failed, st1=%d st2=%d\n", st1, st2);
+		return;
+	}
+
+	PenguinTools::Init(pSwapChain, g_pPenguinDV, g_pPenguinDV->GetPenguinDC());
+	LogToWindow("[Hook] Present 已替换 (MinHook)\n");
 }
-
-
 
 
 

@@ -77,7 +77,8 @@ void PenguinTools::Shutdown() {
     sDC = nullptr;
 }
 
-void PenguinTools::DoFrameActions() {
+// 15-4001 与此无关
+void PenguinTools::MIHYLOL() {
     LogDebug("Running frame actions. Device=%p\n", sDV);
 
     if (LogFile) fflush(LogFile);

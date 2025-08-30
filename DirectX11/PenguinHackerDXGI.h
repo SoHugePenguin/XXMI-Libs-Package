@@ -7,7 +7,7 @@
 class PenguinTools {
 public:
     static void Init(IDXGISwapChain* swap, PenguinDV* dev, PenguinDC* ctx);
-    static void DoFrameActions();
+    static void MIHYLOL();
     static void Shutdown();
     static PenguinDV* sDV;
     static PenguinDC* sDC;

@@ -1,0 +1,3 @@
+[submodule "DirectX11/MinHook"]
+	path = DirectX11/MinHook
+	url = https://github.com/TsudaKageyu/minhook.git
